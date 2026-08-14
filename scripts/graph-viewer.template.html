@@ -1,0 +1,814 @@
+<title>Fieldlines Symbol Graph</title>
+<style>
+  :root {
+    --ground:      #EFF1EE;
+    --surface:     #FAFBF9;
+    --surface-2:   #E6E9E5;
+    --ink:         #161B18;
+    --ink-soft:    #5B6B62;
+    --ink-faint:   #8B978F;
+    --rule:        #D2D8D2;
+    --rule-soft:   #E1E5E0;
+    --structural:  #8A9AA5;
+    --impact:      #A2571A;
+    --accent:      #A2571A;
+    --accent-ink:  #FFFFFF;
+    --focus:       #1F6F63;
+
+    --layer-domain:     #A2571A;
+    --layer-components: #3F6E7D;
+    --layer-app:        #6B7F4A;
+    --layer-tests:      #9A8DA6;
+    --layer-other:      #97A29B;
+
+    --f-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --f-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #121614;
+      --surface:     #191E1B;
+      --surface-2:   #232A26;
+      --ink:         #E8ECE9;
+      --ink-soft:    #95A29A;
+      --ink-faint:   #6B7873;
+      --rule:        #2B332E;
+      --rule-soft:   #222A25;
+      --structural:  #61757F;
+      --impact:      #D98A3D;
+      --accent:      #D98A3D;
+      --accent-ink:  #16110A;
+      --focus:       #4FB3A2;
+
+      --layer-domain:     #D98A3D;
+      --layer-components: #5E9DB0;
+      --layer-app:        #96AE6B;
+      --layer-tests:      #B0A2BC;
+      --layer-other:      #77837C;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #121614;
+    --surface:     #191E1B;
+    --surface-2:   #232A26;
+    --ink:         #E8ECE9;
+    --ink-soft:    #95A29A;
+    --ink-faint:   #6B7873;
+    --rule:        #2B332E;
+    --rule-soft:   #222A25;
+    --structural:  #61757F;
+    --impact:      #D98A3D;
+    --accent:      #D98A3D;
+    --accent-ink:  #16110A;
+    --focus:       #4FB3A2;
+
+    --layer-domain:     #D98A3D;
+    --layer-components: #5E9DB0;
+    --layer-app:        #96AE6B;
+    --layer-tests:      #B0A2BC;
+    --layer-other:      #77837C;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- status readout ---- */
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 28px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  .readout h1 {
+    font-family: var(--f-mono);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin: 0 8px 0 0;
+  }
+  .stat { display: flex; align-items: baseline; gap: 7px; }
+  .stat .k {
+    font-size: 10px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .stat .v { font-variant-numeric: tabular-nums; color: var(--ink); }
+  .stat .v.ok { color: var(--focus); }
+
+  /* ---- shell ---- */
+  .shell {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    height: calc(100vh - 51px);
+    min-height: 520px;
+  }
+
+  .rail {
+    border-right: 1px solid var(--rule);
+    background: var(--surface);
+    overflow-y: auto;
+    padding: 16px 16px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .grp { display: flex; flex-direction: column; gap: 8px; }
+  .grp > h2 {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 2px;
+    font-weight: 600;
+  }
+
+  .note {
+    font-family: var(--f-sans);
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  label.row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 3px 0;
+    font-size: 12px;
+  }
+  label.row input { accent-color: var(--accent); margin: 0; flex: none; }
+  label.row .ct {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+
+  .swatch {
+    width: 18px; height: 3px; border-radius: 2px; flex: none;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+  input[type="search"] {
+    width: 100%;
+    font-family: var(--f-mono);
+    font-size: 12px;
+    padding: 7px 9px;
+    color: var(--ink);
+    background: var(--ground);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+  }
+  input[type="search"]::placeholder { color: var(--ink-faint); }
+
+  button.ghost {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    padding: 6px 10px;
+    color: var(--ink-soft);
+    background: var(--ground);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  button.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  :is(button, input, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  /* ---- canvas stage ---- */
+  .stage { position: relative; overflow: hidden; background: var(--ground); }
+  canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+
+  .hint {
+    position: absolute;
+    left: 14px; bottom: 12px;
+    font-size: 11px;
+    color: var(--ink-faint);
+    pointer-events: none;
+  }
+
+  .settling {
+    position: absolute;
+    top: 12px; left: 14px;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .settling.on { opacity: 1; }
+
+  /* ---- inspector ---- */
+  .inspector {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 310px;
+    background: var(--surface);
+    border-left: 1px solid var(--rule);
+    padding: 16px 16px 28px;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform .18s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .inspector.open { transform: none; }
+
+  .insp-head { display: flex; align-items: flex-start; gap: 10px; }
+  .insp-head .sym {
+    font-size: 14px;
+    font-weight: 600;
+    word-break: break-word;
+    margin: 0;
+    line-height: 1.35;
+  }
+  .insp-head button {
+    margin-left: auto; flex: none;
+    background: none; border: 0; cursor: pointer;
+    color: var(--ink-faint); font-size: 16px; line-height: 1;
+    font-family: var(--f-mono); padding: 2px 4px;
+  }
+  .insp-head button:hover { color: var(--ink); }
+
+  .meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 11.5px; }
+  .meta dt { color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; }
+  .meta dd { margin: 0; word-break: break-all; }
+
+  .edge-list { display: flex; flex-direction: column; gap: 2px; }
+  .edge-list h3 {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 4px; font-weight: 600;
+  }
+  .edge-list .none { color: var(--ink-faint); font-size: 11.5px; font-family: var(--f-sans); }
+  .edge-item {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 4px 6px; border-radius: 3px;
+    background: none; border: 0; width: 100%; text-align: left;
+    font-family: var(--f-mono); font-size: 11.5px; color: var(--ink);
+    cursor: pointer;
+  }
+  .edge-item:hover { background: var(--surface-2); }
+  .edge-item .rel {
+    font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 1px 5px; border-radius: 2px; flex: none;
+    color: var(--accent-ink); background: var(--impact);
+  }
+  .edge-item .rel.st { background: var(--structural); }
+  .edge-item .nm { word-break: break-word; }
+
+  .legend-note {
+    font-family: var(--f-sans);
+    font-size: 11px;
+    color: var(--ink-soft);
+    border-left: 2px solid var(--rule);
+    padding-left: 9px;
+    margin: 0;
+  }
+
+  @media (max-width: 820px) {
+    .shell { grid-template-columns: 1fr; height: auto; }
+    .rail { border-right: 0; border-bottom: 1px solid var(--rule); }
+    .stage { height: 62vh; min-height: 380px; }
+    .inspector { width: min(310px, 88%); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .inspector { transition: none; }
+  }
+</style>
+
+<div class="readout">
+  <h1>Fieldlines Symbol Graph</h1>
+  <div class="stat"><span class="k">commit</span><span class="v" id="r-sha">&mdash;</span></div>
+  <div class="stat"><span class="k">nodes</span><span class="v" id="r-nodes">&mdash;</span></div>
+  <div class="stat"><span class="k">edges</span><span class="v" id="r-edges">&mdash;</span></div>
+  <div class="stat"><span class="k">graphify</span><span class="v" id="r-ver">&mdash;</span></div>
+  <div class="stat"><span class="k">built</span><span class="v" id="r-built">&mdash;</span></div>
+  <div class="stat"><span class="k">state</span><span class="v ok" id="r-state">deterministic</span></div>
+</div>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="grp">
+      <h2>Scope</h2>
+      <label class="row"><input type="radio" name="scope" value="src" checked> src/ only <span class="ct" id="c-src"></span></label>
+      <label class="row"><input type="radio" name="scope" value="code"> all code <span class="ct" id="c-code"></span></label>
+      <label class="row"><input type="radio" name="scope" value="all"> incl. prose <span class="ct" id="c-all"></span></label>
+      <p class="note">Prose nodes are markdown headings &mdash; the backlog and design docs. graphify extracts them, but they are not code.</p>
+    </div>
+
+    <div class="grp">
+      <h2>Edge class</h2>
+      <label class="row">
+        <input type="checkbox" id="e-struct" checked>
+        <span class="swatch" style="background:var(--structural)"></span> structural <span class="ct" id="c-struct"></span>
+      </label>
+      <label class="row">
+        <input type="checkbox" id="e-impact" checked>
+        <span class="swatch" style="background:var(--impact)"></span> impact <span class="ct" id="c-impact"></span>
+      </label>
+      <p class="legend-note">Structural is <em>contains</em>, <em>imports</em>, <em>imports_from</em>. Impact is <em>calls</em>, <em>references</em>, <em>method</em>, <em>extends</em>, <em>indirect_call</em>. Blast radius follows impact only &mdash; propagating along imports would mark the whole repo as affected.</p>
+    </div>
+
+    <div class="grp">
+      <h2>Layer</h2>
+      <label class="row"><span class="dot" style="background:var(--layer-domain)"></span> domain</label>
+      <label class="row"><span class="dot" style="background:var(--layer-components)"></span> components</label>
+      <label class="row"><span class="dot" style="background:var(--layer-app)"></span> app</label>
+      <label class="row"><span class="dot" style="background:var(--layer-tests)"></span> tests</label>
+      <label class="row"><span class="dot" style="background:var(--layer-other)"></span> other</label>
+    </div>
+
+    <div class="grp">
+      <h2>Find</h2>
+      <input type="search" id="q" placeholder="symbol or file&hellip;" autocomplete="off">
+      <button class="ghost" id="reset" type="button">Reset view</button>
+    </div>
+  </aside>
+
+  <div class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="settling" id="settling">solving layout</div>
+    <div class="hint">drag to pan &middot; scroll to zoom &middot; click a node</div>
+
+    <aside class="inspector" id="insp" aria-live="polite">
+      <div class="insp-head">
+        <h2 class="sym" id="i-sym">&mdash;</h2>
+        <button type="button" id="i-close" aria-label="Close inspector">&times;</button>
+      </div>
+      <dl class="meta">
+        <dt>file</dt><dd id="i-file">&mdash;</dd>
+        <dt>at</dt><dd id="i-loc">&mdash;</dd>
+        <dt>kind</dt><dd id="i-kind">&mdash;</dd>
+      </dl>
+      <div class="edge-list">
+        <h3>Depends on <span id="i-out-n"></span></h3>
+        <div id="i-out"></div>
+      </div>
+      <div class="edge-list">
+        <h3>Depended on by <span id="i-in-n"></span></h3>
+        <div id="i-in"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script type="application/json" id="graph-data">__GRAPH__</script>
+<script type="application/json" id="manifest-data">__MANIFEST__</script>
+
+<script>
+(function () {
+  "use strict";
+
+  var RAW  = JSON.parse(document.getElementById("graph-data").textContent);
+  var MAN  = JSON.parse(document.getElementById("manifest-data").textContent);
+
+  // graphify separates structural relations from impact relations. Blast radius
+  // follows impact only: propagating along imports marks the whole repo affected.
+  var STRUCTURAL = { contains: 1, imports: 1, imports_from: 1, requires_env: 1 };
+
+  var NODES = RAW.nodes.map(function (n) {
+    return { id: n.i, label: n.l, file: n.f, ftype: n.t, loc: n.L, callable: !!n.c };
+  });
+  var byId = {};
+  NODES.forEach(function (n, k) { byId[n.id] = n; n.idx = k; });
+
+  var EDGES = RAW.edges.filter(function (e) { return byId[e.s] && byId[e.t]; })
+    .map(function (e) {
+      return { s: e.s, t: e.t, rel: e.r, conf: e.c, structural: !!STRUCTURAL[e.r] };
+    });
+
+  function layerOf(f) {
+    if (!f) return "other";
+    if (f.indexOf("src/__tests__") === 0 || /\.test\.[tj]s$/.test(f)) return "tests";
+    if (f.indexOf("src/domain") === 0) return "domain";
+    if (f.indexOf("src/components") === 0) return "components";
+    if (f.indexOf("src/app") === 0) return "app";
+    return "other";
+  }
+  NODES.forEach(function (n) { n.layer = layerOf(n.file); });
+
+  var css = getComputedStyle(document.documentElement);
+  function tok(name) { return css.getPropertyValue(name).trim(); }
+  var T = {};
+  function readTokens() {
+    css = getComputedStyle(document.documentElement);
+    T = {
+      ink: tok("--ink"), inkSoft: tok("--ink-soft"), inkFaint: tok("--ink-faint"),
+      rule: tok("--rule"), ground: tok("--ground"), surface: tok("--surface"),
+      structural: tok("--structural"), impact: tok("--impact"), focus: tok("--focus"),
+      layer: {
+        domain: tok("--layer-domain"), components: tok("--layer-components"),
+        app: tok("--layer-app"), tests: tok("--layer-tests"), other: tok("--layer-other")
+      }
+    };
+  }
+  readTokens();
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    var onScheme = function () { readTokens(); draw(); };
+    if (mq.addEventListener) mq.addEventListener("change", onScheme);
+    else if (mq.addListener) mq.addListener(onScheme);
+  }
+
+  // ---- counts for the rail ----
+  var nSrc = NODES.filter(function (n) { return n.file.indexOf("src/") === 0; }).length;
+  var nCode = NODES.filter(function (n) { return n.ftype === "code"; }).length;
+  document.getElementById("c-src").textContent = nSrc;
+  document.getElementById("c-code").textContent = nCode;
+  document.getElementById("c-all").textContent = NODES.length;
+  document.getElementById("c-struct").textContent = EDGES.filter(function (e) { return e.structural; }).length;
+  document.getElementById("c-impact").textContent = EDGES.filter(function (e) { return !e.structural; }).length;
+
+  document.getElementById("r-sha").textContent = (MAN.sha || "").slice(0, 8);
+  document.getElementById("r-nodes").textContent = MAN.node_count;
+  document.getElementById("r-edges").textContent = MAN.edge_count;
+  document.getElementById("r-ver").textContent = MAN.graphify_version;
+  document.getElementById("r-built").textContent = (MAN.built_at || "").replace("T", " ").replace("+00:00", "Z");
+
+  // ---- view state ----
+  var scope = "src", showStruct = true, showImpact = true, query = "";
+  var view = { nodes: [], edges: [], adjOut: {}, adjIn: {} };
+  var selected = null, hovered = null;
+  var cam = { x: 0, y: 0, z: 1 };
+
+  var cv = document.getElementById("cv");
+  var ctx = cv.getContext("2d");
+  var stage = document.getElementById("stage");
+  var W = 0, H = 0, DPR = 1;
+
+  function resize() {
+    var r = stage.getBoundingClientRect();
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(1, Math.floor(r.width));
+    H = Math.max(1, Math.floor(r.height));
+    cv.width = W * DPR; cv.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    draw();
+  }
+
+  function inScope(n) {
+    if (scope === "src") return n.file.indexOf("src/") === 0;
+    if (scope === "code") return n.ftype === "code";
+    return true;
+  }
+
+  function rebuild() {
+    var keep = {};
+    view.nodes = NODES.filter(function (n) {
+      if (!inScope(n)) return false;
+      keep[n.id] = true; return true;
+    });
+    view.edges = EDGES.filter(function (e) {
+      if (!keep[e.s] || !keep[e.t]) return false;
+      return e.structural ? showStruct : showImpact;
+    });
+
+    view.adjOut = {}; view.adjIn = {};
+    view.edges.forEach(function (e) {
+      (view.adjOut[e.s] = view.adjOut[e.s] || []).push(e);
+      (view.adjIn[e.t] = view.adjIn[e.t] || []).push(e);
+    });
+
+    var deg = {};
+    view.edges.forEach(function (e) { deg[e.s] = (deg[e.s] || 0) + 1; deg[e.t] = (deg[e.t] || 0) + 1; });
+
+    var n = view.nodes.length;
+    var R = Math.min(W, H) * 0.36 || 260;
+    view.nodes.forEach(function (nd, i) {
+      var a = (i / Math.max(1, n)) * Math.PI * 2;
+      // Deterministic spiral seed \u2014 no RNG, so the same graph lays out the same way.
+      var rr = R * (0.35 + 0.65 * ((i * 2654435761 % 1000) / 1000));
+      nd.x = Math.cos(a) * rr;
+      nd.y = Math.sin(a) * rr;
+      nd.vx = 0; nd.vy = 0;
+      nd.deg = deg[nd.id] || 0;
+      nd.r = 3.1 + Math.min(7, Math.sqrt(nd.deg) * 1.9);
+    });
+
+    if (selected && !keep[selected]) selected = null;
+    startSim();
+  }
+
+  // ---- force simulation ----
+  var simLeft = 0, rafId = 0;
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var settlingEl = document.getElementById("settling");
+
+  function startSim() {
+    simLeft = view.nodes.length > 260 ? 220 : 300;
+    settlingEl.classList.add("on");
+    if (reduceMotion) {
+      while (simLeft-- > 0) step();
+      settlingEl.classList.remove("on");
+      fit(); draw();
+      return;
+    }
+    if (!rafId) rafId = requestAnimationFrame(tick);
+  }
+
+  function step() {
+    var ns = view.nodes, n = ns.length, i, j, a, b, dx, dy, d2, d, f;
+    var REP = 1400, SPRING = 0.05, LEN = 52, DAMP = 0.72, CENTER = 0.012;
+    var MAXF = 22, MAXV = 26, MIND = 1.2;
+
+    // Forces are recomputed from scratch every step. Accumulating straight into
+    // velocity instead lets repulsion compound frame over frame and the layout
+    // blows apart along one axis.
+    for (i = 0; i < n; i++) { ns[i].fx = 0; ns[i].fy = 0; }
+
+    for (i = 0; i < n; i++) {
+      a = ns[i];
+      for (j = i + 1; j < n; j++) {
+        b = ns[j];
+        dx = a.x - b.x; dy = a.y - b.y;
+        d2 = dx * dx + dy * dy;
+        if (d2 < MIND) {
+          // Exact overlap: nudge apart on a per-pair diagonal so the tie breaks
+          // in both axes, not just x.
+          dx = ((i % 7) - 3) * 0.4 + 0.2;
+          dy = ((j % 5) - 2) * 0.4 + 0.2;
+          d2 = dx * dx + dy * dy;
+        }
+        d = Math.sqrt(d2);
+        f = Math.min(MAXF, REP / d2);
+        dx /= d; dy /= d;
+        a.fx += dx * f; a.fy += dy * f;
+        b.fx -= dx * f; b.fy -= dy * f;
+      }
+    }
+
+    view.edges.forEach(function (e) {
+      var s = byId[e.s], t = byId[e.t], ex, ey, ed, ef;
+      ex = t.x - s.x; ey = t.y - s.y;
+      ed = Math.sqrt(ex * ex + ey * ey) || 0.01;
+      ef = Math.max(-MAXF, Math.min(MAXF, (ed - LEN) * SPRING));
+      ex /= ed; ey /= ed;
+      s.fx += ex * ef; s.fy += ey * ef;
+      t.fx -= ex * ef; t.fy -= ey * ef;
+    });
+
+    for (i = 0; i < n; i++) {
+      a = ns[i];
+      a.fx -= a.x * CENTER; a.fy -= a.y * CENTER;
+      a.vx = (a.vx + a.fx) * DAMP;
+      a.vy = (a.vy + a.fy) * DAMP;
+      if (a.vx > MAXV) a.vx = MAXV; else if (a.vx < -MAXV) a.vx = -MAXV;
+      if (a.vy > MAXV) a.vy = MAXV; else if (a.vy < -MAXV) a.vy = -MAXV;
+      a.x += a.vx; a.y += a.vy;
+    }
+  }
+
+  function tick() {
+    var budget = 4;
+    while (budget-- > 0 && simLeft > 0) { step(); simLeft--; }
+    if (simLeft === 220 - 4 || simLeft === 296) fit();
+    draw();
+    if (simLeft > 0) { rafId = requestAnimationFrame(tick); }
+    else { rafId = 0; settlingEl.classList.remove("on"); fit(); draw(); }
+  }
+
+  function fit() {
+    if (!view.nodes.length) return;
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    view.nodes.forEach(function (n) {
+      if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
+      if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y;
+    });
+    var pad = 54;
+    var zx = (W - pad * 2) / Math.max(1, maxX - minX);
+    var zy = (H - pad * 2) / Math.max(1, maxY - minY);
+    cam.z = Math.max(0.18, Math.min(2.4, Math.min(zx, zy)));
+    cam.x = W / 2 - ((minX + maxX) / 2) * cam.z;
+    cam.y = H / 2 - ((minY + maxY) / 2) * cam.z;
+  }
+
+  function sx(x) { return x * cam.z + cam.x; }
+  function sy(y) { return y * cam.z + cam.y; }
+
+  function neighborhood(id) {
+    if (!id) return null;
+    var set = {}; set[id] = true;
+    (view.adjOut[id] || []).forEach(function (e) { set[e.t] = true; });
+    (view.adjIn[id] || []).forEach(function (e) { set[e.s] = true; });
+    return set;
+  }
+
+  function matches(n) {
+    if (!query) return false;
+    var q = query.toLowerCase();
+    return n.label.toLowerCase().indexOf(q) >= 0 || n.file.toLowerCase().indexOf(q) >= 0;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    var focusId = selected || hovered;
+    var near = neighborhood(focusId);
+
+    // edges
+    view.edges.forEach(function (e) {
+      var s = byId[e.s], t = byId[e.t];
+      var lit = !near || (near[e.s] && near[e.t]);
+      ctx.globalAlpha = near ? (lit ? 0.95 : 0.07) : (e.structural ? 0.34 : 0.68);
+      ctx.strokeStyle = e.structural ? T.structural : T.impact;
+      ctx.lineWidth = (e.structural ? 0.85 : 1.5) * (lit && near ? 1.5 : 1);
+      ctx.beginPath();
+      ctx.moveTo(sx(s.x), sy(s.y));
+      ctx.lineTo(sx(t.x), sy(t.y));
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+
+    // nodes
+    view.nodes.forEach(function (n) {
+      var lit = !near || near[n.id];
+      var hit = matches(n);
+      ctx.globalAlpha = lit ? 1 : 0.12;
+      ctx.beginPath();
+      ctx.arc(sx(n.x), sy(n.y), n.r * Math.max(0.55, Math.min(1.6, cam.z)), 0, Math.PI * 2);
+      ctx.fillStyle = T.layer[n.layer] || T.layer.other;
+      ctx.fill();
+      if (n.id === selected || hit) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = hit && n.id !== selected ? T.focus : T.ink;
+        ctx.stroke();
+      }
+    });
+    ctx.globalAlpha = 1;
+
+    // labels \u2014 only when there is room, or when focused
+    var showAll = view.nodes.length <= 70 || cam.z > 1.15;
+    ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    ctx.textBaseline = "middle";
+    view.nodes.forEach(function (n) {
+      var focusedNode = near && near[n.id];
+      if (!showAll && !focusedNode && !matches(n) && n.deg < 6) return;
+      if (near && !near[n.id]) return;
+      ctx.fillStyle = (n.id === selected) ? T.ink : T.inkSoft;
+      ctx.globalAlpha = 1;
+      ctx.fillText(n.label, sx(n.x) + n.r + 5, sy(n.y));
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- picking ----
+  function pick(px, py) {
+    var best = null, bd = 16 * 16;
+    view.nodes.forEach(function (n) {
+      var dx = px - sx(n.x), dy = py - sy(n.y);
+      var d2 = dx * dx + dy * dy;
+      if (d2 < bd) { bd = d2; best = n; }
+    });
+    return best;
+  }
+
+  var dragging = false, dragged = false, lx = 0, ly = 0;
+
+  cv.addEventListener("pointerdown", function (ev) {
+    dragging = true; dragged = false;
+    lx = ev.offsetX; ly = ev.offsetY;
+    cv.classList.add("dragging");
+    cv.setPointerCapture(ev.pointerId);
+  });
+
+  cv.addEventListener("pointermove", function (ev) {
+    if (dragging) {
+      var dx = ev.offsetX - lx, dy = ev.offsetY - ly;
+      if (Math.abs(dx) + Math.abs(dy) > 2) dragged = true;
+      cam.x += dx; cam.y += dy;
+      lx = ev.offsetX; ly = ev.offsetY;
+      draw();
+      return;
+    }
+    var n = pick(ev.offsetX, ev.offsetY);
+    var id = n ? n.id : null;
+    if (id !== hovered) { hovered = id; draw(); }
+  });
+
+  cv.addEventListener("pointerup", function (ev) {
+    dragging = false;
+    cv.classList.remove("dragging");
+    if (dragged) return;
+    var n = pick(ev.offsetX, ev.offsetY);
+    select(n ? n.id : null);
+  });
+
+  cv.addEventListener("pointerleave", function () {
+    if (hovered) { hovered = null; draw(); }
+  });
+
+  cv.addEventListener("wheel", function (ev) {
+    ev.preventDefault();
+    var k = Math.exp(-ev.deltaY * 0.0016);
+    var nz = Math.max(0.12, Math.min(6, cam.z * k));
+    var r = nz / cam.z;
+    cam.x = ev.offsetX - (ev.offsetX - cam.x) * r;
+    cam.y = ev.offsetY - (ev.offsetY - cam.y) * r;
+    cam.z = nz;
+    draw();
+  }, { passive: false });
+
+  // ---- inspector ----
+  var insp = document.getElementById("insp");
+
+  function relPill(e) {
+    var b = document.createElement("span");
+    b.className = "rel" + (e.structural ? " st" : "");
+    b.textContent = e.rel;
+    return b;
+  }
+
+  function fillList(el, edges, dirKey) {
+    el.innerHTML = "";
+    if (!edges || !edges.length) {
+      var p = document.createElement("p");
+      p.className = "none";
+      p.textContent = "Nothing.";
+      el.appendChild(p);
+      return;
+    }
+    edges.slice(0, 60).forEach(function (e) {
+      var other = byId[dirKey === "out" ? e.t : e.s];
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "edge-item";
+      b.appendChild(relPill(e));
+      var nm = document.createElement("span");
+      nm.className = "nm";
+      nm.textContent = other.label;
+      b.appendChild(nm);
+      b.addEventListener("click", function () { select(other.id); });
+      el.appendChild(b);
+    });
+  }
+
+  function select(id) {
+    selected = id;
+    if (!id) { insp.classList.remove("open"); draw(); return; }
+    var n = byId[id];
+    document.getElementById("i-sym").textContent = n.label;
+    document.getElementById("i-file").textContent = n.file || "\u2014";
+    document.getElementById("i-loc").textContent = n.loc || "\u2014";
+    document.getElementById("i-kind").textContent =
+      (n.callable ? "callable \u00b7 " : "") + (n.ftype || "\u2014") + " \u00b7 " + n.layer;
+    var out = view.adjOut[id] || [], inn = view.adjIn[id] || [];
+    document.getElementById("i-out-n").textContent = out.length ? "(" + out.length + ")" : "";
+    document.getElementById("i-in-n").textContent = inn.length ? "(" + inn.length + ")" : "";
+    fillList(document.getElementById("i-out"), out, "out");
+    fillList(document.getElementById("i-in"), inn, "in");
+    insp.classList.add("open");
+    draw();
+  }
+
+  document.getElementById("i-close").addEventListener("click", function () { select(null); });
+
+  // ---- controls ----
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="scope"]'), function (r) {
+    r.addEventListener("change", function () { scope = r.value; rebuild(); });
+  });
+  document.getElementById("e-struct").addEventListener("change", function (e) {
+    showStruct = e.target.checked; rebuild();
+  });
+  document.getElementById("e-impact").addEventListener("change", function (e) {
+    showImpact = e.target.checked; rebuild();
+  });
+  document.getElementById("q").addEventListener("input", function (e) {
+    query = e.target.value.trim(); draw();
+  });
+  document.getElementById("reset").addEventListener("click", function () {
+    select(null); query = ""; document.getElementById("q").value = "";
+    fit(); draw();
+  });
+
+  window.addEventListener("resize", resize);
+  resize();
+  rebuild();
+})();
+</script>

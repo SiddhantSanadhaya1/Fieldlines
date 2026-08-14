@@ -18,3 +18,4 @@ dist/
 graphify-out/
 graph.json
 manifest.json
+graph-viewer.html
