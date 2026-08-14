@@ -1,0 +1,56 @@
+name: Code Graph
+
+# Every push or merge to main rebuilds the deterministic code graph and
+# republishes it, so the graph on `origin/graph` always matches the code on
+# `origin/main`. graphify makes no network or LLM calls, so the graph is
+# reproducible from the commit SHA.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install graphify
+        run: pip install --quiet graphifyy
+
+      - name: Build graph
+        run: python scripts/build-graph.py
+
+      - name: Upload graph
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-graph-${{ github.sha }}
+          path: |
+            graph.json
+            manifest.json
+
+      # Publish to an orphan `graph` branch. Force-pushed every run, so it never
+      # conflicts with main and carries no history — it is a generated artifact.
+      # Consumers: git fetch origin graph && git show origin/graph:graph.json
+      - name: Publish graph branch
+        run: |
+          mkdir -p /tmp/graph
+          cp graph.json manifest.json /tmp/graph/
+          cd /tmp/graph
+          git init -q
+          git checkout -q -b graph
+          git add .
+          git -c user.name='github-actions[bot]' \
+              -c user.email='github-actions[bot]@users.noreply.github.com' \
+              commit -q -m "graph @ ${GITHUB_SHA:0:8}"
+          git push -q --force \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" graph
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
