@@ -1,0 +1,20 @@
+{
+  "name": "fieldlines-risk-scoring",
+  "version": "1.0.0",
+  "description": "Fieldlines supervisor review queue (FIEL-53, FIEL-60, FIEL-59)",
+  "main": "dist/domain/risk/risk-scorer.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "preview": "vite preview",
+    "test": "node --import tsx --test src/__tests__/*.test.ts",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vite": "^8.2.1"
+  }
+}

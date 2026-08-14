@@ -1,0 +1,20 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Tooling scratch
+.playwright-mcp/
+*.log
+
+# Code graph — generated on every push to main, published to the `graph` branch.
+# Never committed to main; fetch with: git fetch origin graph
+graphify-out/
+graph.json
+manifest.json
