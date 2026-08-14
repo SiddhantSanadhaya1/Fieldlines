@@ -10,7 +10,7 @@ uploaded — the page is written into the repo and opened with the local browser
 **Step 1 — If the repo has the viewer, run it:**
 
 ```bash
-python scripts/show-graph.py
+python3 scripts/show-graph.py
 ```
 
 It pulls the graph CI published on the orphan `graph` branch, falls back to a local
@@ -19,6 +19,9 @@ the four lines it prints — nodes/edges, commit and state, source, output path.
 
 Useful flags: `--local` to build from the working tree first, `--no-open` to write the
 file without launching a browser.
+
+Use `python3`. If the repo's interpreter is exposed as `python` instead, fall back to
+that - many machines have only one of the two on PATH.
 
 **Step 2 — If `scripts/show-graph.py` does not exist**, report status only:
 

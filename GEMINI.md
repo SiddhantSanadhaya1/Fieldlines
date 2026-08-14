@@ -783,7 +783,7 @@ uploaded — the page is written into the repo and opened with the local browser
 **Step 1 — If the repo has the viewer, run it:**
 
 ```bash
-python scripts/show-graph.py
+python3 scripts/show-graph.py
 ```
 
 It pulls the graph CI published on the orphan `graph` branch, falls back to a local

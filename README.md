@@ -48,7 +48,7 @@ graphify makes no network or LLM calls, so the graph is reproducible from a comm
 whether the graph matches the code.
 
 ```bash
-python scripts/build-graph.py        # local build
+python3 scripts/build-graph.py        # local build
 
 git fetch origin graph               # fetch the published graph
 git show origin/graph:manifest.json  # sha, node/edge counts, graphify version
