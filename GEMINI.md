@@ -326,23 +326,29 @@ Invoke agent-skills:dispatching-parallel-agents.
 
 Use when tasks in the plan are independent and can run concurrently without stepping on each other.
 
-**Step 0 — Plan gate (blocking):**
+**Step 0 - Plan gate (blocking):**
+
+First name the target: the ticket key (`FIEL-18`) or feature slug being dispatched.
+Then look for a plan **for that target** - plans for other tickets do not count.
 
 ```bash
 ls docs/statusneo/plans/*.md 2>/dev/null
+grep -ril "<TARGET>" docs/statusneo/plans/ 2>/dev/null
 ```
 
-If no plan file exists, **STOP**. Do not improvise a breakdown, do not infer tasks from
-`SPEC.md`, a brainstorm doc, or a Jira ticket, and do not dispatch a single subagent.
-Report exactly this and end the turn:
+If nothing matches the target, **STOP**. Do not dispatch a single subagent, and do not
+satisfy the gate yourself: do not improvise a breakdown, do not infer tasks from
+`SPEC.md`, a brainstorm doc, or a Jira ticket, and **do not run `/plan` and continue in
+the same turn**. Report exactly this and end the turn:
 
-> No implementation plan in `docs/statusneo/plans/`. This command executes a plan, it
-> does not create one. Run `/plan` first — or `/feature` then `/plan` if there is no
-> spec yet.
+> No implementation plan for `<TARGET>` in `docs/statusneo/plans/`. This command
+> executes a plan, it does not create one. Run `/plan` first - or `/feature` then
+> `/plan` if there is no spec yet.
 
 **Why this is blocking:** the two-stage review checks each task against *that task's*
 acceptance criteria. With no plan there are no per-task criteria, so the review
 degrades to a general code read and the quality gate is gone.
+
 
 **Step 1 — Assess parallelizability:**
 Read the plan and identify which tasks are independent:
@@ -375,23 +381,29 @@ _Execute a plan by dispatching a fresh subagent per task with two-stage review_
 
 Invoke the agent-skills:agent-task-dispatch skill.
 
-**Step 0 — Plan gate (blocking):**
+**Step 0 - Plan gate (blocking):**
+
+First name the target: the ticket key (`FIEL-18`) or feature slug being dispatched.
+Then look for a plan **for that target** - plans for other tickets do not count.
 
 ```bash
 ls docs/statusneo/plans/*.md 2>/dev/null
+grep -ril "<TARGET>" docs/statusneo/plans/ 2>/dev/null
 ```
 
-If no plan file exists, **STOP**. Do not improvise a breakdown, do not infer tasks from
-`SPEC.md`, a brainstorm doc, or a Jira ticket, and do not dispatch a single subagent.
-Report exactly this and end the turn:
+If nothing matches the target, **STOP**. Do not dispatch a single subagent, and do not
+satisfy the gate yourself: do not improvise a breakdown, do not infer tasks from
+`SPEC.md`, a brainstorm doc, or a Jira ticket, and **do not run `/plan` and continue in
+the same turn**. Report exactly this and end the turn:
 
-> No implementation plan in `docs/statusneo/plans/`. This command executes a plan, it
-> does not create one. Run `/plan` first — or `/feature` then `/plan` if there is no
-> spec yet.
+> No implementation plan for `<TARGET>` in `docs/statusneo/plans/`. This command
+> executes a plan, it does not create one. Run `/plan` first - or `/feature` then
+> `/plan` if there is no spec yet.
 
 **Why this is blocking:** the two-stage review checks each task against *that task's*
 acceptance criteria. With no plan there are no per-task criteria, so the review
 degrades to a general code read and the quality gate is gone.
+
 
 Then execute the plan task by task using fresh subagents:
 
@@ -500,23 +512,29 @@ _Execute a plan inline in the current session with human checkpoints between bat
 
 Invoke the agent-skills:executing-plans skill.
 
-**Step 0 — Plan gate (blocking):**
+**Step 0 - Plan gate (blocking):**
+
+First name the target: the ticket key (`FIEL-18`) or feature slug being dispatched.
+Then look for a plan **for that target** - plans for other tickets do not count.
 
 ```bash
 ls docs/statusneo/plans/*.md 2>/dev/null
+grep -ril "<TARGET>" docs/statusneo/plans/ 2>/dev/null
 ```
 
-If no plan file exists, **STOP**. Do not improvise a breakdown, do not infer tasks from
-`SPEC.md`, a brainstorm doc, or a Jira ticket, and do not dispatch a single subagent.
-Report exactly this and end the turn:
+If nothing matches the target, **STOP**. Do not dispatch a single subagent, and do not
+satisfy the gate yourself: do not improvise a breakdown, do not infer tasks from
+`SPEC.md`, a brainstorm doc, or a Jira ticket, and **do not run `/plan` and continue in
+the same turn**. Report exactly this and end the turn:
 
-> No implementation plan in `docs/statusneo/plans/`. This command executes a plan, it
-> does not create one. Run `/plan` first — or `/feature` then `/plan` if there is no
-> spec yet.
+> No implementation plan for `<TARGET>` in `docs/statusneo/plans/`. This command
+> executes a plan, it does not create one. Run `/plan` first - or `/feature` then
+> `/plan` if there is no spec yet.
 
 **Why this is blocking:** the two-stage review checks each task against *that task's*
 acceptance criteria. With no plan there are no per-task criteria, so the review
 degrades to a general code read and the quality gate is gone.
+
 
 Then execute the plan in this session in batches:
 
