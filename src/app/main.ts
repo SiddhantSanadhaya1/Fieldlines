@@ -16,6 +16,7 @@ import { JobDetailViewController } from '../components/job-detail/JobDetailView.
 import type { SortableColumn } from '../components/review-queue/types.js';
 import type { DetailedJobData, JobDetailTab } from '../components/job-detail/types.js';
 import { JOBS, JOBS_BY_ID, toQueueItems, scoreBreakdownFor } from './fixtures.js';
+import { submitVerdict } from '../api/job-ingest/verdict-client.js';
 
 type Verdict = 'ACCEPT' | 'REJECT' | 'REWORK';
 
@@ -66,6 +67,18 @@ function applyVerdict(jobId: string, verdict: Verdict): void {
     REJECT: 'rejected',
   };
   toast(`Job ${jobId} — ${job?.jobType ?? ''} ${wording[verdict]}.`, verdict);
+
+  // Tell the server. The queue already moved on, so a failure has to be surfaced
+  // rather than swallowed — a supervisor who believes a job is closed when the
+  // closure audit never wrote is the worst outcome here.
+  void submitVerdict(jobId, verdict).then((outcome) => {
+    if (!outcome.ok) {
+      openJobs = job ? [job, ...openJobs] : openJobs;
+      queue = buildQueue();
+      render();
+      toast(`Job ${jobId} could not be closed — ${outcome.error ?? 'server error'}. Returned to the queue.`, 'REJECT');
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------

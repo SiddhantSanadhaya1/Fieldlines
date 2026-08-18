@@ -31,10 +31,60 @@ negative or missing counts to `0` rather than throwing.
 ```bash
 npm install
 npm test         # node --test, 25 tests
-npm run build    # tsc
+npm run build    # tsc --noEmit over src/ and api/, then vite build
+npm run api      # the verdict API on :3001
+npm run dev:all  # API and review queue together
 ```
 
+CI runs `npm ci && npm test && npm run build` on every push and pull request
+(`.github/workflows/ci.yml`), and deploys to Vercel from `main`. The deploy step
+skips itself with a notice when `VERCEL_TOKEN`, `VERCEL_ORG_ID` and
+`VERCEL_PROJECT_ID` are absent, rather than failing the run — a configuration gap
+is not something a code change can fix.
+
 Open `index.html` for the review queue demo against fixture data.
+
+## API and telemetry
+
+The supervisor's verdict is not applied in the browser alone. `POST /api/verdict`
+writes a **closure audit** record: it re-derives the risk score server-side rather
+than trusting the number the browser displayed, so a stale or tampered client
+cannot close a high-risk job as low-risk.
+
+```bash
+npm run api        # the API on :3001
+npm run dev        # the review queue on :5173
+npm run dev:all    # both
+```
+
+### Exporting exceptions
+
+The API is instrumented with OpenTelemetry and exports traces over OTLP. There is
+no third-party telemetry vendor here — **Mission Control is itself an OTLP
+receiver**, so traces go straight to it, and any OTel SDK or Collector that speaks
+OTLP/HTTP would work the same way.
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=https://<mission-control>/v1/traces \
+MISSION_CONTROL_INGEST_KEY=mcik_... \
+  npm run api
+```
+
+Issue the key in Mission Control under **Project → Telemetry & Signals → New
+key**. It is shown once and stored hashed. With the endpoint unset the app runs
+normally and simply exports nothing — a missing variable must never take down the
+review queue.
+
+Two details in `api/_telemetry.ts` are load-bearing on Vercel and would be wrong
+in a long-running server: spans use a **simple** processor rather than a batch
+one, and the handler **awaits a flush** before responding. A serverless container
+freezes the moment it returns, so a batched span — including the one carrying the
+exception — is a span that never ships.
+
+Instrumentation is server-side on purpose. The ingest key stays out of client
+JavaScript, and a stack trace from a bundled browser build points at
+`assets/index-a1b2c3.js`, which cannot be mapped back to a file in this
+repository. A server trace names `api/verdict.ts:75`, which is what a fix needs.
 
 ## Code graph
 

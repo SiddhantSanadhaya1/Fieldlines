@@ -9,12 +9,21 @@
     "preview": "vite preview",
     "test": "node --import tsx --test src/__tests__/*.test.ts",
     "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "api": "node --import tsx server.mjs",
+    "dev:all": "node --import tsx server.mjs & vite"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
     "vite": "^8.2.1"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.208.0",
+    "@opentelemetry/resources": "^2.1.0",
+    "@opentelemetry/sdk-trace-node": "^2.1.0",
+    "@opentelemetry/semantic-conventions": "^1.37.0"
   }
 }
