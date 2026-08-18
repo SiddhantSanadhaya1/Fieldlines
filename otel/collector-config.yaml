@@ -1,0 +1,80 @@
+# OpenTelemetry Collector — the single place Fieldlines sends telemetry.
+#
+# The application knows one endpoint: this collector. Everything downstream is
+# configuration here, not code there. Adding a backend, removing one, or
+# swapping vendors never touches the app or requires a redeploy.
+#
+#   Fieldlines ──OTLP──▶ Collector ──┬──▶ Jaeger          (look at traces)
+#                                    └──▶ Mission Control (heal the failures)
+#
+# Both destinations receive the same spans. They do different things with them:
+# Jaeger keeps everything so a human can search it; Mission Control keeps only
+# the errors and turns them into fix stories.
+
+receivers:
+  otlp:
+    protocols:
+      # gRPC is the SDK default and the cheaper wire format.
+      grpc:
+        endpoint: 0.0.0.0:4317
+      # HTTP for anything that cannot open a gRPC connection — a browser, a
+      # curl, a serverless runtime with a short-lived socket.
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - http://localhost:5173
+
+processors:
+  # Bound memory before the queue does. A collector that is OOM-killed loses
+  # every span it was holding, including the error span that mattered.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+
+  batch:
+    timeout: 2s
+    send_batch_size: 256
+
+  # Stamp where these spans came from, so a backend receiving several services
+  # can tell them apart.
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: local
+        action: upsert
+
+exporters:
+  # Jaeger speaks OTLP natively; no translation needed.
+  otlp_grpc/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+  # Mission Control's own OTLP receiver. It authenticates with a per-project
+  # ingest key, which is why this exporter carries an Authorization header while
+  # the Jaeger one does not.
+  otlp_http/mission_control:
+    endpoint: ${env:MISSION_CONTROL_OTLP_ENDPOINT}
+    headers:
+      Authorization: Bearer ${env:MISSION_CONTROL_INGEST_KEY}
+    # Mission Control is not on the critical path for the application. If it is
+    # down, spans should queue and retry rather than back-pressure the collector.
+    retry_on_failure:
+      enabled: true
+      initial_interval: 2s
+      max_interval: 30s
+    sending_queue:
+      enabled: true
+      queue_size: 512
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp_grpc/jaeger, otlp_http/mission_control]

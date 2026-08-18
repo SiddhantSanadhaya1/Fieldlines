@@ -1,0 +1,50 @@
+# Telemetry backends for local development.
+#
+#   MISSION_CONTROL_OTLP_ENDPOINT=http://host.docker.internal:8090 \
+#   MISSION_CONTROL_INGEST_KEY=mcik_... \
+#     docker compose -f docker-compose.telemetry.yml up -d
+#
+# Then point the application at the collector and nothing else:
+#
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 npm run api
+#
+# Jaeger UI: http://localhost:16686
+#
+# Neither of these is required to run Fieldlines. With no collector reachable the
+# app exports nothing and works normally — telemetry is never load-bearing.
+
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    container_name: fieldlines-jaeger
+    environment:
+      # Accept OTLP directly, so no legacy Jaeger-specific format is involved
+      # anywhere in this stack.
+      COLLECTOR_OTLP_ENABLED: 'true'
+    ports:
+      - '16686:16686'   # UI
+    networks: [telemetry]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.159.0
+    container_name: fieldlines-otel-collector
+    command: ['--config=/etc/otel/config.yaml']
+    volumes:
+      - ./otel/collector-config.yaml:/etc/otel/config.yaml:ro
+    environment:
+      # Where Mission Control listens. From inside a container, the host is
+      # reachable as host.docker.internal — localhost would be the container.
+      MISSION_CONTROL_OTLP_ENDPOINT: ${MISSION_CONTROL_OTLP_ENDPOINT:-http://host.docker.internal:8090}
+      MISSION_CONTROL_INGEST_KEY: ${MISSION_CONTROL_INGEST_KEY:-}
+    ports:
+      - '4317:4317'   # OTLP over gRPC
+      - '4318:4318'   # OTLP over HTTP
+    depends_on: [jaeger]
+    extra_hosts:
+      # Linux does not provide host.docker.internal by default.
+      - 'host.docker.internal:host-gateway'
+    networks: [telemetry]
+
+networks:
+  telemetry:
+    driver: bridge

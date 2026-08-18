@@ -1,12 +1,22 @@
 /**
  * OpenTelemetry wiring for the Fieldlines API.
  *
- * Traces go straight to Mission Control's own OTLP receiver — there is no
- * third-party telemetry vendor in this demo. Mission Control accepts OTLP over
- * HTTP at `/v1/traces` with a bearer ingest key, sifts spans carrying an
- * exception event, and turns the ones that look like code defects into fix
- * stories. Any OTel SDK or Collector that speaks OTLP/HTTP would work the same
- * way; nothing here is Mission-Control-specific except the URL and the header.
+ * The app speaks OTLP and knows exactly one endpoint. What sits at the other end
+ * is not its concern, and deliberately so:
+ *
+ *   - In development, an OpenTelemetry Collector, which fans the same spans out
+ *     to Jaeger for a human to look at and to Mission Control for healing.
+ *     See docker-compose.telemetry.yml.
+ *   - Or Mission Control directly, when a collector is more machinery than the
+ *     situation warrants.
+ *
+ * Nothing below is specific to either. Every knob is a standard OpenTelemetry
+ * environment variable, so the destination changes without a code change — which
+ * is the whole argument for OTLP being the channel rather than a bespoke one.
+ *
+ * Mission Control, wherever it sits in that path, keeps only spans carrying an
+ * exception event and turns the ones that look like code defects into fix
+ * stories. Jaeger keeps everything.
  *
  * Two things about this file are load-bearing in a serverless deployment and
  * would be wrong in a long-running server:
@@ -38,6 +48,51 @@ const SERVICE_NAME = process.env.OTEL_SERVICE_NAME ?? 'fieldlines-api';
 let provider: NodeTracerProvider | undefined;
 
 /**
+ * Where traces go, resolved the way the OpenTelemetry specification says.
+ *
+ * `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is the full URL for traces specifically.
+ * `OTEL_EXPORTER_OTLP_ENDPOINT` is a base URL shared by all signal types, and
+ * the exporter appends `/v1/traces` to it. The signal-specific variable wins
+ * when both are set. Using the standard names rather than invented ones means
+ * any OpenTelemetry tooling configures this app without knowing anything about
+ * it.
+ */
+function resolveEndpoint(): string | undefined {
+  const signalSpecific = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT?.trim();
+  if (signalSpecific) return signalSpecific;
+
+  const base = process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
+  if (!base) return undefined;
+  return `${base.replace(/\/+$/, '')}/v1/traces`;
+}
+
+/**
+ * Headers for the exporter.
+ *
+ * `OTEL_EXPORTER_OTLP_HEADERS` is the standard mechanism, a comma-separated list
+ * of `key=value` pairs. `MISSION_CONTROL_INGEST_KEY` is a convenience for the
+ * common case of sending straight to Mission Control without a collector in
+ * between; it simply becomes an Authorization header.
+ *
+ * When a collector is in the path, the app should carry no credential at all —
+ * the collector holds it. That is one of the better reasons to run one.
+ */
+function resolveHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+
+  for (const pair of (process.env.OTEL_EXPORTER_OTLP_HEADERS ?? '').split(',')) {
+    const index = pair.indexOf('=');
+    if (index <= 0) continue;
+    headers[pair.slice(0, index).trim()] = pair.slice(index + 1).trim();
+  }
+
+  const ingestKey = process.env.MISSION_CONTROL_INGEST_KEY?.trim();
+  if (ingestKey && !headers.Authorization) headers.Authorization = `Bearer ${ingestKey}`;
+
+  return headers;
+}
+
+/**
  * Build the provider once per warm container.
  *
  * Returns undefined when no endpoint is configured, so the app runs perfectly
@@ -47,10 +102,8 @@ let provider: NodeTracerProvider | undefined;
 function getProvider(): NodeTracerProvider | undefined {
   if (provider) return provider;
 
-  const url = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  const url = resolveEndpoint();
   if (!url) return undefined;
-
-  const ingestKey = process.env.MISSION_CONTROL_INGEST_KEY;
 
   provider = new NodeTracerProvider({
     resource: resourceFromAttributes({
@@ -59,10 +112,7 @@ function getProvider(): NodeTracerProvider | undefined {
     }),
     spanProcessors: [
       new SimpleSpanProcessor(
-        new OTLPTraceExporter({
-          url,
-          headers: ingestKey ? { Authorization: `Bearer ${ingestKey}` } : {}
-        })
+        new OTLPTraceExporter({ url, headers: resolveHeaders() })
       )
     ]
   });
