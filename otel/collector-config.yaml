@@ -4,12 +4,12 @@
 # configuration here, not code there. Adding a backend, removing one, or
 # swapping vendors never touches the app or requires a redeploy.
 #
-#   Fieldlines ──OTLP──▶ Collector ──┬──▶ Jaeger          (look at traces)
+#   Fieldlines ──OTLP──▶ Collector ──┬──▶ Tempo / Grafana (look at traces)
 #                                    └──▶ Mission Control (heal the failures)
 #
 # Both destinations receive the same spans. They do different things with them:
-# Jaeger keeps everything so a human can search it; Mission Control keeps only
-# the errors and turns them into fix stories.
+# Tempo keeps everything so a human can search it in Grafana; Mission Control
+# keeps only the errors and turns them into fix stories.
 
 receivers:
   otlp:
@@ -46,9 +46,11 @@ processors:
         action: upsert
 
 exporters:
-  # Jaeger speaks OTLP natively; no translation needed.
-  otlp_grpc/jaeger:
-    endpoint: jaeger:4317
+  # Tempo speaks OTLP natively; no translation needed. Swapping the trace
+  # backend is this one block — the application never learns it changed, which
+  # is the whole argument for putting a collector in the path.
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
     tls:
       insecure: true
 
@@ -77,4 +79,4 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, resource, batch]
-      exporters: [otlp_grpc/jaeger, otlp_http/mission_control]
+      exporters: [otlp_grpc/tempo, otlp_http/mission_control]

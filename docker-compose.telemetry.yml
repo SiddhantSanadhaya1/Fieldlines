@@ -8,21 +8,53 @@
 #
 #   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 npm run api
 #
-# Jaeger UI: http://localhost:16686
+# Grafana: http://localhost:3300  (anonymous admin — demo only)
 #
-# Neither of these is required to run Fieldlines. With no collector reachable the
-# app exports nothing and works normally — telemetry is never load-bearing.
+# Grafana and Tempo rather than Jaeger. Jaeger is a fine trace viewer, but it is
+# only a trace viewer: an enterprise audience asks where the logs and metrics go
+# and the answer is "a different tool". Tempo is Grafana's trace store, sitting
+# beside Loki for logs and Prometheus or Mimir for metrics, all queried through
+# one Grafana. Adding those later needs no change to the application — only
+# another exporter in the collector.
+#
+# Tempo also derives RED metrics (rate, errors, duration) and a service graph
+# from the spans themselves, so the application gets dashboards without emitting
+# a single metric of its own.
+#
+# None of this is required to run Fieldlines. With no collector reachable the app
+# exports nothing and works normally — telemetry is never load-bearing.
 
 services:
-  jaeger:
-    image: jaegertracing/all-in-one:1.76.0
-    container_name: fieldlines-jaeger
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: fieldlines-tempo
+    command: ['-config.file=/etc/tempo/tempo.yaml']
+    volumes:
+      - ./otel/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    # Restart on its own so a laptop sleeping, or Docker restarting, does not
+    # quietly take the demo down.
+    restart: unless-stopped
+    networks: [telemetry]
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: fieldlines-grafana
     environment:
-      # Accept OTLP directly, so no legacy Jaeger-specific format is involved
-      # anywhere in this stack.
-      COLLECTOR_OTLP_ENABLED: 'true'
+      # Anonymous admin: this is a local demo, and a login prompt in the middle
+      # of a walkthrough is friction with no security value here.
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: 'true'
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - ./otel/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ./otel/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - grafana-data:/var/lib/grafana
     ports:
-      - '16686:16686'   # UI
+      - '3300:3000'
+    depends_on: [tempo]
+    restart: unless-stopped
     networks: [telemetry]
 
   otel-collector:
@@ -39,11 +71,16 @@ services:
     ports:
       - '4317:4317'   # OTLP over gRPC
       - '4318:4318'   # OTLP over HTTP
-    depends_on: [jaeger]
+    depends_on: [tempo]
     extra_hosts:
       # Linux does not provide host.docker.internal by default.
       - 'host.docker.internal:host-gateway'
+    restart: unless-stopped
     networks: [telemetry]
+
+volumes:
+  tempo-data:
+  grafana-data:
 
 networks:
   telemetry:

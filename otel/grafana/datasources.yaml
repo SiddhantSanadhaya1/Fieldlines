@@ -1,0 +1,24 @@
+# Grafana datasources, provisioned at startup.
+#
+# Provisioned rather than clicked through the UI so the stack comes up ready.
+# A demo that begins with "first let me add a datasource" has already lost the
+# room.
+
+apiVersion: 1
+
+datasources:
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    isDefault: true
+    jsonData:
+      # Show the service graph and RED metrics Tempo derives from spans, so the
+      # traces view is not the only thing on offer.
+      serviceMap:
+        datasourceUid: tempo
+      nodeGraph:
+        enabled: true
+      tracesToLogs:
+        datasourceUid: tempo

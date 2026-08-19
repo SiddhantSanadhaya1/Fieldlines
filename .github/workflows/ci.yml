@@ -47,12 +47,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Upload build output
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist
-          retention-days: 7
+      # No artifact upload. Nothing downstream consumes it — Vercel builds from
+      # source itself — and the organisation's artifact storage quota is shared,
+      # so uploading a bundle nobody reads turns a green build red once the quota
+      # fills. A failing CI job here also raises a self-healing incident, so a
+      # storage limit would become a request to fix code that is not broken.
 
   deploy:
     name: Deploy to Vercel
