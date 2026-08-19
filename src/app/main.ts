@@ -253,6 +253,24 @@ function render(): void {
 // Event delegation — forwards DOM events into the controllers.
 // ---------------------------------------------------------------------------
 
+/**
+ * This module cannot be hot-swapped, so ask Vite for a full reload instead.
+ *
+ * The listeners below are attached at module scope. A hot update re-executes the
+ * module and attaches a second set while the first is still bound, so every
+ * click runs both the old handler and the new one. During development that
+ * presents as a fix having no effect — the corrected code does run, but the
+ * previous version runs alongside it and its side effects win.
+ *
+ * A full reload is the honest behaviour for a module whose top level touches the
+ * DOM. It costs a page refresh and removes an entire class of phantom bug.
+ */
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    window.location.reload();
+  });
+}
+
 root.addEventListener('click', (event) => {
   const target = event.target as HTMLElement;
 
