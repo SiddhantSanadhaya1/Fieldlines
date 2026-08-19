@@ -29,6 +29,18 @@ let openJobs: DetailedJobData[] = [...JOBS];
 /** Which job is open in the detail view, or null when showing the queue. */
 let openJobId: string | null = null;
 
+/** Verdicts submitted and not yet answered, so the buttons can be disabled. */
+const pendingVerdicts = new Set<string>();
+
+/**
+ * Jobs whose last verdict was refused by the server, with the reason.
+ *
+ * Held in state rather than announced once, because a toast that expires is not
+ * a record of anything — a supervisor who looked away has no way to learn the
+ * closure failed.
+ */
+const failedVerdicts = new Map<string, string>();
+
 let queue = buildQueue();
 let detail: JobDetailViewController | null = null;
 
@@ -53,31 +65,52 @@ function buildQueue(): ReviewQueueTableController {
   });
 }
 
+const VERDICT_WORDING: Record<Verdict, string> = {
+  ACCEPT: 'accepted and closed',
+  REWORK: 'returned to the technician for rework',
+  REJECT: 'rejected',
+};
+
+/**
+ * Apply a supervisor's verdict, once the server has confirmed it.
+ *
+ * The job is not removed and nothing is announced until the closure audit has
+ * actually been written. An earlier version updated the queue immediately and
+ * showed "accepted and closed" straight away, then quietly put the job back if
+ * the server refused — so a failed closure read as a successful one for as long
+ * as it took the request to come back, and the correction was a toast that
+ * expired in four seconds.
+ *
+ * For an action whose entire purpose is producing an audit record, claiming
+ * success before that record exists is the one thing this screen must not do.
+ */
 function applyVerdict(jobId: string, verdict: Verdict): void {
   const job = JOBS_BY_ID.get(jobId);
-  openJobs = openJobs.filter((j) => j.id !== jobId);
-  openJobId = null;
-  detail = null;
-  queue = buildQueue();
+  if (!job || pendingVerdicts.has(jobId)) return;
+
+  pendingVerdicts.add(jobId);
   render();
 
-  const wording: Record<Verdict, string> = {
-    ACCEPT: 'accepted and closed',
-    REWORK: 'returned to the technician for rework',
-    REJECT: 'rejected',
-  };
-  toast(`Job ${jobId} — ${job?.jobType ?? ''} ${wording[verdict]}.`, verdict);
-
-  // Tell the server. The queue already moved on, so a failure has to be surfaced
-  // rather than swallowed — a supervisor who believes a job is closed when the
-  // closure audit never wrote is the worst outcome here.
   void submitVerdict(jobId, verdict).then((outcome) => {
+    pendingVerdicts.delete(jobId);
+
     if (!outcome.ok) {
-      openJobs = job ? [job, ...openJobs] : openJobs;
-      queue = buildQueue();
+      // The job stays exactly where it is. The only thing that changes is that
+      // the failure is now recorded against it and shown in the queue, so it
+      // does not depend on catching a toast.
+      failedVerdicts.set(jobId, outcome.error ?? 'server error');
       render();
-      toast(`Job ${jobId} could not be closed — ${outcome.error ?? 'server error'}. Returned to the queue.`, 'REJECT');
+      toast(`Job ${jobId} could not be closed — ${outcome.error ?? 'server error'}.`, 'REJECT');
+      return;
     }
+
+    failedVerdicts.delete(jobId);
+    openJobs = openJobs.filter((j) => j.id !== jobId);
+    openJobId = null;
+    detail = null;
+    queue = buildQueue();
+    render();
+    toast(`Job ${jobId} — ${job.jobType} ${VERDICT_WORDING[verdict]}.`, verdict);
   });
 }
 
@@ -159,13 +192,41 @@ function toast(message: string, verdict: Verdict): void {
 // Render
 // ---------------------------------------------------------------------------
 
+/**
+ * A banner naming a refused closure, shown on the job itself.
+ *
+ * Persistent on purpose. The failure is the thing a supervisor most needs to
+ * know about, and a message that disappears after four seconds is not a way to
+ * tell anyone anything.
+ */
+function renderVerdictFailure(jobId: string): string {
+  const reason = failedVerdicts.get(jobId);
+  if (!reason) return '';
+  return `
+    <div class="verdict-error" role="alert">
+      <strong>This job could not be closed.</strong>
+      <span>${reason}</span>
+      <span class="verdict-error-note">The verdict was not recorded. The job remains in the review queue.</span>
+    </div>`;
+}
+
 function render(): void {
   if (openJobId && detail) {
     root.innerHTML = `
       <div class="detail-layout">
-        ${detail.renderHTML()}
+        <div>
+          ${renderVerdictFailure(openJobId)}
+          ${detail.renderHTML()}
+        </div>
         ${renderScorePanel(openJobId)}
       </div>`;
+    // Submitting is in flight: stop a second click producing a second verdict.
+    if (pendingVerdicts.has(openJobId)) {
+      for (const button of root.querySelectorAll<HTMLButtonElement>('.btn-verdict')) {
+        button.disabled = true;
+        button.textContent = 'Recording…';
+      }
+    }
   } else {
     const total = openJobs.length;
     const highRisk = openJobs.filter((j) => j.riskScore >= 10).length;
