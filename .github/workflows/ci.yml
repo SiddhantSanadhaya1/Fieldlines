@@ -1,13 +1,20 @@
 name: CI
 
-# Runs the tests and the build on every push and pull request, then deploys to
-# Vercel from main.
+# Runs the tests and the build on every push and pull request.
 #
-# This workflow is also the trigger for Mission Control's self-healing loop: when
-# a job here fails, the `workflow_run` webhook delivers the failure, Mission
-# Control fetches these logs, sifts them down to the error, and raises a fix
-# story. So the useful property is not just that it fails, but that it fails
-# *legibly* — one obvious error line, not a wall of noise.
+# It deliberately does NOT deploy. Vercel's own Git integration ships the app,
+# and duplicating that here would mean every push deploys twice and would need
+# three Vercel secrets on this repository for no benefit.
+#
+# What this workflow is actually for is being the thing that can go red. A failed
+# job here is one of Mission Control's two intakes: the `workflow_run` webhook
+# delivers the failure, Mission Control fetches these logs, sifts them to the
+# error, and raises a fix story with a pull request. The other intake is a
+# runtime exception arriving over OTLP.
+#
+# So the useful property is not only that it fails, but that it fails *legibly* —
+# one obvious error line rather than a wall of noise, because those logs are read
+# by a model that has to locate the file and line from them.
 
 on:
   push:
@@ -52,51 +59,3 @@ jobs:
       # so uploading a bundle nobody reads turns a green build red once the quota
       # fills. A failing CI job here also raises a self-healing incident, so a
       # storage limit would become a request to fix code that is not broken.
-
-  deploy:
-    name: Deploy to Vercel
-    needs: verify
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    environment:
-      name: production
-      url: ${{ steps.deploy.outputs.url }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-
-      # Deploying needs three secrets. Rather than fail the run when they are
-      # absent — which would raise a self-healing incident for a configuration
-      # gap that no code change can fix — the step reports what is missing and
-      # the job ends green.
-      - name: Check Vercel configuration
-        id: config
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
-            echo "::notice::Vercel secrets are not configured; skipping deploy."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Deploy
-        id: deploy
-        if: steps.config.outputs.ready == 'true'
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          npm i -g vercel@latest
-          vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-          vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-          url=$(vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}")
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Deployed to $url"

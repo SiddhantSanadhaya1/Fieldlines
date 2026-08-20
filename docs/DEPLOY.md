@@ -52,30 +52,20 @@ curl -i -X POST https://agentic-sdlc.statusneo.com/mission-control/v1/traces/fie
 
 ---
 
-## 2. Connect the repository to Vercel
+## 2. Vercel
 
-The CI workflow deploys from `main` but skips itself with a notice when the
-secrets are absent, which is why no deploy has happened yet. Confirmed: the
-repository currently has **no secrets configured**.
+Vercel's own Git integration deploys the app on every push to `main`. There is
+nothing to configure in this repository for that, and no Vercel secrets are
+needed here.
 
-1. Import `StatusNeo/Fieldlines` in Vercel.
-2. Take the three values from the Vercel project (Settings, and `.vercel/project.json`
-   after `vercel link`).
-3. Add them as **GitHub Actions secrets** on the repository:
+CI does **not** deploy, deliberately. Duplicating Vercel's trigger would mean
+every push deploys twice for no benefit. What CI is for is being the thing that
+can go red: a failed job is one of Mission Control's two intakes, and without a
+build there is nothing for a build failure to come from.
 
-```
-VERCEL_TOKEN        a token from https://vercel.com/account/tokens
-VERCEL_ORG_ID       from .vercel/project.json
-VERCEL_PROJECT_ID   from .vercel/project.json
-```
-
-The next push to `main` deploys. Nothing else in the workflow needs changing.
-
-`vercel.json` pins the serverless runtime for `api/*.ts`. The handler was
-verified to run headless — no DOM, no browser globals — which is what a
-serverless runtime requires.
-
----
+If you would rather a red build could never reach production, set
+**Project → Settings → Git → Ignored Build Step** to skip when CI has not passed.
+That makes Vercel wait on CI instead of racing it.
 
 ## 3. Create an ingest key on the deployed Mission Control
 
