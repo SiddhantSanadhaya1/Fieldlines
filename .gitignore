@@ -19,3 +19,11 @@ graphify-out/
 graph.json
 manifest.json
 graph-viewer.html
+
+# Vercel's local link, written by `vercel link`. Machine-specific.
+.vercel
+
+# Real credentials never get committed. The example file is the exception —
+# it carries the variable names with no values, which is the point of it.
+.env*
+!.env.example
