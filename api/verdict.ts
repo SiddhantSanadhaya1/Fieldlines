@@ -15,7 +15,7 @@ import { calculateRiskScore } from '../src/domain/risk/risk-scorer.js';
 import { isMeasurementOutOfRange } from '../src/components/job-detail/helpers.js';
 import { JOBS_BY_ID } from '../src/app/fixtures.js';
 import type { DetailedJobData } from '../src/components/job-detail/types.js';
-import { flush, withSpan } from './_telemetry.js';
+import { flush, recordRequest, withSpan } from './_telemetry.js';
 
 export type Verdict = 'ACCEPT' | 'REJECT' | 'REWORK';
 
@@ -137,6 +137,7 @@ interface VercelResponse {
 }
 
 export default async function handler(request: VercelRequest, response: VercelResponse): Promise<void> {
+  const started = Date.now();
   response.setHeader('Access-Control-Allow-Origin', '*');
   response.setHeader('Access-Control-Allow-Headers', 'content-type');
 
@@ -157,11 +158,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
       span.setAttribute('job.verdict', String(body.verdict ?? ''));
       return handleVerdict(body);
     });
+    recordRequest('/api/verdict', request.method ?? 'POST', result.status, Date.now() - started);
     response.status(result.status).json(result.payload);
   } catch (error) {
     // The exception is already recorded on the span by withSpan. Answer the
     // browser with a 500 rather than letting the platform return an opaque one,
     // so the reviewer sees that the verdict did not stick.
+    recordRequest('/api/verdict', request.method ?? 'POST', 500, Date.now() - started);
     response.status(500).json({
       error: 'Could not record the verdict',
       detail: error instanceof Error ? error.message : String(error)

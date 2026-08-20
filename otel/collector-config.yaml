@@ -71,6 +71,15 @@ exporters:
       enabled: true
       queue_size: 512
 
+  # Republishes whatever metrics arrive over OTLP in the format Prometheus
+  # scrapes. The application speaks only OTLP and never learns Prometheus exists.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    send_timestamps: true
+    metric_expiration: 5m
+    resource_to_telemetry_conversion:
+      enabled: true
+
 service:
   telemetry:
     logs:
@@ -80,3 +89,11 @@ service:
       receivers: [otlp]
       processors: [memory_limiter, resource, batch]
       exporters: [otlp_grpc/tempo, otlp_http/mission_control]
+
+    # Metrics go to Prometheus only. Mission Control heals code from errors; a
+    # request-rate series tells it nothing it can act on, so sending metrics
+    # there would be volume without purpose.
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [prometheus]

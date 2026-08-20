@@ -76,7 +76,10 @@ def main():
             graph, man, source = from_local()
 
     payload = json.dumps(slim(graph), separators=(",", ":")).replace("</", "<\\/")
-    manifest = json.dumps(man, separators=(",", ":")).replace("</", "<\\/")
+    # The viewer does not surface the builder tool, so keep its version out
+    # of the embedded payload rather than shipping an unused field.
+    man_embed = {k: v for k, v in man.items() if k != "graphify_version"}
+    manifest = json.dumps(man_embed, separators=(",", ":")).replace("</", "<\\/")
 
     html = TEMPLATE.read_text()
     html = html.replace("__GRAPH__", payload).replace("__MANIFEST__", manifest)

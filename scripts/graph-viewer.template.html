@@ -309,7 +309,6 @@
   <div class="stat"><span class="k">commit</span><span class="v" id="r-sha">&mdash;</span></div>
   <div class="stat"><span class="k">nodes</span><span class="v" id="r-nodes">&mdash;</span></div>
   <div class="stat"><span class="k">edges</span><span class="v" id="r-edges">&mdash;</span></div>
-  <div class="stat"><span class="k">graphify</span><span class="v" id="r-ver">&mdash;</span></div>
   <div class="stat"><span class="k">built</span><span class="v" id="r-built">&mdash;</span></div>
   <div class="stat"><span class="k">state</span><span class="v ok" id="r-state">deterministic</span></div>
 </div>
@@ -321,7 +320,7 @@
       <label class="row"><input type="radio" name="scope" value="src" checked> src/ only <span class="ct" id="c-src"></span></label>
       <label class="row"><input type="radio" name="scope" value="code"> all code <span class="ct" id="c-code"></span></label>
       <label class="row"><input type="radio" name="scope" value="all"> incl. prose <span class="ct" id="c-all"></span></label>
-      <p class="note">Prose nodes are markdown headings &mdash; the backlog and design docs. graphify extracts them, but they are not code.</p>
+      <p class="note">Prose nodes are markdown headings &mdash; the backlog and design docs. They are extracted and indexed, but they are not code.</p>
     </div>
 
     <div class="grp">
@@ -390,7 +389,7 @@
   var RAW  = JSON.parse(document.getElementById("graph-data").textContent);
   var MAN  = JSON.parse(document.getElementById("manifest-data").textContent);
 
-  // graphify separates structural relations from impact relations. Blast radius
+  // Structural relations are separated from impact relations. Blast radius
   // follows impact only: propagating along imports marks the whole repo affected.
   var STRUCTURAL = { contains: 1, imports: 1, imports_from: 1, requires_env: 1 };
 
@@ -450,7 +449,6 @@
   document.getElementById("r-sha").textContent = (MAN.sha || "").slice(0, 8);
   document.getElementById("r-nodes").textContent = MAN.node_count;
   document.getElementById("r-edges").textContent = MAN.edge_count;
-  document.getElementById("r-ver").textContent = MAN.graphify_version;
   document.getElementById("r-built").textContent = (MAN.built_at || "").replace("T", " ").replace("+00:00", "Z");
 
   // ---- view state ----

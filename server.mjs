@@ -16,6 +16,7 @@ import { createServer } from 'node:http';
 // The handler is TypeScript. `npm run api` starts node with `--import tsx`,
 // matching how the test script already loads TypeScript in this repo.
 const { default: verdictHandler } = await import('./api/verdict.ts');
+const { default: healthHandler } = await import('./api/health.ts');
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -27,8 +28,14 @@ function readBody(request) {
   });
 }
 
+const ROUTES = {
+  '/api/verdict': verdictHandler,
+  '/api/health': healthHandler
+};
+
 const server = createServer(async (request, response) => {
-  if (!request.url?.startsWith('/api/verdict')) {
+  const route = Object.keys(ROUTES).find((r) => request.url?.startsWith(r));
+  if (!route) {
     response.writeHead(404, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ error: 'Not found' }));
     return;
@@ -50,7 +57,7 @@ const server = createServer(async (request, response) => {
     }
   };
 
-  await verdictHandler({ method: request.method, body: raw }, shim);
+  await ROUTES[route]({ method: request.method, body: raw }, shim);
 });
 
 server.listen(PORT, () => {

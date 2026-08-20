@@ -39,6 +39,9 @@
  */
 import { NodeTracerProvider, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { metrics, type Counter, type Histogram } from '@opentelemetry/api';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
 import { SpanStatusCode, trace, type Span } from '@opentelemetry/api';
@@ -120,10 +123,122 @@ function getProvider(): NodeTracerProvider | undefined {
   return provider;
 }
 
+
+// ---------------------------------------------------------------------------
+// Metrics
+// ---------------------------------------------------------------------------
+
+/**
+ * Metrics, alongside traces.
+ *
+ * A trace answers "what happened in this one request". A metric answers "is the
+ * service healthy right now" — which is the question a dashboard is for, and one
+ * traces cannot answer cheaply because answering it would mean scanning every
+ * trace in the window.
+ *
+ * Three instruments, deliberately few:
+ *
+ *   fieldlines.health          1 while the process is serving, 0 otherwise
+ *   fieldlines.requests        count, split by route, method and status
+ *   fieldlines.request.duration  latency histogram, same split
+ *
+ * Together those give rate, errors and duration — the three numbers an operator
+ * actually looks at — plus a liveness signal that does not depend on any request
+ * having happened.
+ */
+let meterProvider: MeterProvider | undefined;
+let requestCounter: Counter | undefined;
+let durationHistogram: Histogram | undefined;
+
+function metricsEndpoint(): string | undefined {
+  const signalSpecific = process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT?.trim();
+  if (signalSpecific) return signalSpecific;
+
+  const base = process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
+  if (!base) return undefined;
+  return `${base.replace(/\/+$/, '')}/v1/metrics`;
+}
+
+function getMeterProvider(): MeterProvider | undefined {
+  if (meterProvider) return meterProvider;
+
+  const url = metricsEndpoint();
+  if (!url) return undefined;
+
+  meterProvider = new MeterProvider({
+    resource: resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: SERVICE_NAME,
+      [ATTR_SERVICE_VERSION]: process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev'
+    }),
+    readers: [
+      new PeriodicExportingMetricReader({
+        exporter: new OTLPMetricExporter({ url, headers: resolveHeaders() }),
+        // Ten seconds. Long enough not to be chatty, short enough that a
+        // dashboard reacts while someone is still looking at it.
+        exportIntervalMillis: 10_000
+      })
+    ]
+  });
+  metrics.setGlobalMeterProvider(meterProvider);
+
+  const meter = meterProvider.getMeter(SERVICE_NAME);
+
+  // An observable gauge rather than a counter: liveness is a state to be read on
+  // every collection, not an event to be counted. If the process is gone the
+  // series simply stops, which is what "unhealthy" looks like on a graph.
+  meter
+    .createObservableGauge('fieldlines.health', {
+      description: '1 while the API process is serving requests'
+    })
+    .addCallback((result) => result.observe(1, { service: SERVICE_NAME }));
+
+  meter
+    .createObservableGauge('fieldlines.uptime.seconds', {
+      description: 'Seconds since the API process started',
+      unit: 's'
+    })
+    .addCallback((result) => result.observe(process.uptime(), { service: SERVICE_NAME }));
+
+  requestCounter = meter.createCounter('fieldlines.requests', {
+    description: 'Requests handled, split by route, method and status'
+  });
+
+  durationHistogram = meter.createHistogram('fieldlines.request.duration', {
+    description: 'Request duration',
+    unit: 'ms'
+  });
+
+  return meterProvider;
+}
+
+/**
+ * Whether telemetry has anywhere to send to.
+ *
+ * Reported by the health check as information, never as a verdict: an
+ * unreachable collector does not make the review queue unhealthy.
+ */
+export function telemetryStatus(): { configured: boolean; endpoint: string | null } {
+  const endpoint = resolveEndpoint() ?? null;
+  return { configured: Boolean(endpoint), endpoint };
+}
+
+/** Record one handled request. Never throws — telemetry must not break serving. */
+export function recordRequest(route: string, method: string, status: number, durationMs: number): void {
+  try {
+    getMeterProvider();
+    const attributes = { route, method, status: String(status), outcome: status >= 500 ? 'error' : 'ok' };
+    requestCounter?.add(1, attributes);
+    durationHistogram?.record(durationMs, attributes);
+  } catch {
+    // Deliberately silent.
+  }
+}
+
 /** Push everything queued. Must be awaited before a serverless handler returns. */
 export async function flush(): Promise<void> {
   try {
     await getProvider()?.forceFlush();
+    await meterProvider?.forceFlush();
   } catch {
     // A telemetry failure must never become an application failure.
   }

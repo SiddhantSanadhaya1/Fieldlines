@@ -50,10 +50,24 @@ services:
     volumes:
       - ./otel/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
       - ./otel/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - ./otel/grafana/fieldlines-health.json:/etc/grafana/provisioning/dashboards/fieldlines-health.json:ro
       - grafana-data:/var/lib/grafana
     ports:
       - '3300:3000'
     depends_on: [tempo]
+    restart: unless-stopped
+    networks: [telemetry]
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: fieldlines-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=24h'
+      - '--web.enable-remote-write-receiver'
+    volumes:
+      - ./otel/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
     restart: unless-stopped
     networks: [telemetry]
 
@@ -71,6 +85,7 @@ services:
     ports:
       - '4317:4317'   # OTLP over gRPC
       - '4318:4318'   # OTLP over HTTP
+      - '8889:8889'   # Prometheus scrape endpoint
     depends_on: [tempo]
     extra_hosts:
       # Linux does not provide host.docker.internal by default.
@@ -81,6 +96,7 @@ services:
 volumes:
   tempo-data:
   grafana-data:
+  prometheus-data:
 
 networks:
   telemetry:

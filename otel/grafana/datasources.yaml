@@ -22,3 +22,12 @@ datasources:
         enabled: true
       tracesToLogs:
         datasourceUid: tempo
+
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    jsonData:
+      httpMethod: POST
+      timeInterval: 10s

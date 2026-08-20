@@ -32,7 +32,7 @@ Web console view showing all jobs with sync status (synced, pending on device, c
 REST API endpoint accepting job type, site address, appointment window, customer contact, assigned technician. Validates input, creates job, returns job ID and initial state. Documented with OpenAPI spec. Rate-limited to prevent abuse. External scheduler calls this API; assigned technician sees job on next sync.
 
 ### Acceptance Criteria
-- [ ] Implement work described in FIEL-18: As a dispatcher, I want a job ingest API so external scheduling systems can create jobs in Fieldline
+- [x] Implement work described in FIEL-18: As a dispatcher, I want a job ingest API so external scheduling systems can create jobs in Fieldline
 
 ## [FIEL-26] As a product manager, I want reviewer verdicts paired with on-site findings so I can measure check accuracy
 **Project:** Fieldlines | **Priority:** Medium | **Points:** 5 | **Status:** To Do
