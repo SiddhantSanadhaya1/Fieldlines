@@ -72,7 +72,7 @@ export function buildClosureAudit(job: DetailedJobData, verdict: Verdict, now: D
   const recomputed = calculateRiskScore(factorsFor(job));
 
   const history = verdictHistory[job.id];
-  const supersedes = history.at(-1) ?? null;
+  const supersedes = history?.at(-1) ?? null;
 
   return {
     jobId: job.id,
