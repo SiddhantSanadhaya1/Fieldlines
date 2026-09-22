@@ -72,6 +72,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
   response.setHeader('Access-Control-Allow-Origin', '*');
   response.setHeader('cache-control', 'no-store');
 
+  let status: number;
+  let payload: unknown;
   try {
     const report = await withSpan('GET /api/health', async (span) => {
       const built = buildHealthReport();
@@ -79,17 +81,19 @@ export default async function handler(request: VercelRequest, response: VercelRe
       span.setAttribute('health.jobs', built.checks.jobStore.jobs);
       return built;
     });
-
-    const status = report.status === 'ok' ? 200 : 503;
-    recordRequest('/api/health', request.method ?? 'GET', status, Date.now() - started);
-    response.status(status).json(report);
+    status = report.status === 'ok' ? 200 : 503;
+    payload = report;
   } catch (error) {
-    recordRequest('/api/health', request.method ?? 'GET', 500, Date.now() - started);
-    response.status(500).json({
+    status = 500;
+    payload = {
       status: 'degraded',
       error: error instanceof Error ? error.message : String(error)
-    });
-  } finally {
-    await flush();
+    };
   }
+  recordRequest('/api/health', request.method ?? 'GET', status, Date.now() - started);
+
+  // Before responding, for the reason given in verdict.ts: once the response is
+  // sent the function may be frozen, and an unfinished export is dropped.
+  await flush();
+  response.status(status).json(payload);
 }

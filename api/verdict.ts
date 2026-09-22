@@ -152,25 +152,33 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
   const body = (typeof request.body === 'string' ? JSON.parse(request.body || '{}') : request.body ?? {}) as VerdictRequest;
 
+  let status: number;
+  let payload: unknown;
   try {
     const result = await withSpan('POST /api/verdict', async (span) => {
       span.setAttribute('job.id', String(body.jobId ?? ''));
       span.setAttribute('job.verdict', String(body.verdict ?? ''));
       return handleVerdict(body);
     });
-    recordRequest('/api/verdict', request.method ?? 'POST', result.status, Date.now() - started);
-    response.status(result.status).json(result.payload);
+    status = result.status;
+    payload = result.payload;
   } catch (error) {
     // The exception is already recorded on the span by withSpan. Answer the
     // browser with a 500 rather than letting the platform return an opaque one,
     // so the reviewer sees that the verdict did not stick.
-    recordRequest('/api/verdict', request.method ?? 'POST', 500, Date.now() - started);
-    response.status(500).json({
+    status = 500;
+    payload = {
       error: 'Could not record the verdict',
       detail: error instanceof Error ? error.message : String(error)
-    });
-  } finally {
-    // Serverless containers freeze on return; an unflushed span is a lost span.
-    await flush();
+    };
   }
+  recordRequest('/api/verdict', request.method ?? 'POST', status, Date.now() - started);
+
+  // Flush BEFORE responding, never after. Vercel may freeze the function the
+  // moment the response is sent, so an export still in flight at that point is
+  // lost — and the span it drops is this one, the one carrying the exception.
+  // Flushing in a `finally` after `response.json()` looked equivalent and was
+  // not: the failure it exists to report was the trace that never arrived.
+  await flush();
+  response.status(status).json(payload);
 }
