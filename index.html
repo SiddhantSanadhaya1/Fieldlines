@@ -3,28 +3,27 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Fieldlines — Supervisor Review Queue</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
+    <title>Fieldlines — Supervisor Review</title>
+    <meta name="theme-color" content="#FBFCFA" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2317221D'/%3E%3Cpath d='M7 22c5-9 13-9 18-12' stroke='%23F2C230' stroke-width='3.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="preload" href="/fonts/barlow-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/barlow-semi-condensed-600.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/src/app/styles.css" />
   </head>
   <body>
     <header class="app-header">
-      <div class="brand">
-        <span class="brand-mark">FL</span>
-        <div>
-          <h1>Fieldlines</h1>
-          <p>Supervisor Review Queue</p>
-        </div>
-      </div>
-      <div class="ticket-refs">
-        <span>FIEL-53 risk scoring</span>
-        <span>FIEL-60 review queue</span>
-        <span>FIEL-59 job detail</span>
-      </div>
+      <a class="brand" href="/" aria-label="Fieldlines, review queue">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="7" />
+          <path d="M7 22c5-9 13-9 18-12" />
+        </svg>
+        <span class="brand-name">Fieldlines</span>
+      </a>
+      <span class="app-section">Supervisor review</span>
     </header>
 
     <main id="app"></main>
-    <div id="toast-host"></div>
+    <div id="toast-host" aria-live="polite"></div>
 
     <script type="module" src="/src/app/main.ts"></script>
   </body>

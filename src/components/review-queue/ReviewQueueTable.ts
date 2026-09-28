@@ -56,24 +56,27 @@ export class ReviewQueueTableController {
 
   public renderHTML(): string {
     const sorted = this.getSortedJobs();
-    const headers: { label: string; key: SortableColumn }[] = [
+    const headers: { label: string; key: SortableColumn; numeric?: boolean }[] = [
       { label: 'Technician', key: 'technicianName' },
-      { label: 'Job Type', key: 'jobType' },
-      { label: 'Completion Time', key: 'completedAt' },
-      { label: 'Findings', key: 'findingsCount' },
-      { label: 'Overrides', key: 'overridesCount' },
-      { label: 'Risk Score', key: 'riskScore' },
+      { label: 'Job type', key: 'jobType' },
+      { label: 'Completed', key: 'completedAt' },
+      { label: 'Findings', key: 'findingsCount', numeric: true },
+      { label: 'Overrides', key: 'overridesCount', numeric: true },
+      { label: 'Risk', key: 'riskScore' },
     ];
 
     const headerHTML = headers
-      .map(({ label, key }) => {
+      .map(({ label, key, numeric }) => {
         const isSorted = this.currentSortColumn === key;
-        const arrow = isSorted
+        const ariaSort = isSorted
           ? this.currentSortDirection === 'asc'
-            ? ' ▲'
-            : ' ▼'
+            ? 'ascending'
+            : 'descending'
+          : 'none';
+        const indicator = isSorted
+          ? `<span class="sort-indicator" aria-hidden="true">${this.currentSortDirection === 'asc' ? '↑' : '↓'}</span>`
           : '';
-        return `<th data-sort-key="${key}">${label}${arrow}</th>`;
+        return `<th data-sort-key="${key}" aria-sort="${ariaSort}" class="col-${key}${numeric ? ' num' : ''}"><button type="button" class="sort-btn">${label}${indicator}</button></th>`;
       })
       .join('');
 
@@ -84,18 +87,17 @@ export class ReviewQueueTableController {
           job.completedAt instanceof Date
             ? job.completedAt.toISOString()
             : String(job.completedAt);
+        const levelWord = riskLevel.charAt(0) + riskLevel.slice(1).toLowerCase();
 
         return `
-        <tr data-job-id="${job.id}" class="queue-row">
-          <td>${job.technicianName}</td>
-          <td>${job.jobType}</td>
-          <td>${formattedDate}</td>
-          <td>${job.findingsCount}</td>
-          <td>${job.overridesCount}</td>
-          <td>
-            <span class="badge badge-${riskLevel.toLowerCase()}">
-              ${job.riskScore} (${riskLevel})
-            </span>
+        <tr data-job-id="${job.id}" class="queue-row risk-row-${riskLevel.toLowerCase()}" tabindex="0">
+          <td class="col-technicianName">${job.technicianName}</td>
+          <td class="col-jobType"><span class="job-type-name">${job.jobType}</span><span class="job-ref">${job.id}</span></td>
+          <td class="col-completedAt">${formattedDate}</td>
+          <td class="col-findingsCount num">${job.findingsCount}</td>
+          <td class="col-overridesCount num">${job.overridesCount}</td>
+          <td class="col-riskScore">
+            <div class="risk-cell"><span class="badge badge-${riskLevel.toLowerCase()}"><span class="risk-num">${job.riskScore}</span><span class="risk-word">${levelWord}</span></span></div>
           </td>
         </tr>`;
       })

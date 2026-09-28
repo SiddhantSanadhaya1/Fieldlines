@@ -57,10 +57,14 @@ function buildQueue(): ReviewQueueTableController {
           openJobId = null;
           detail = null;
           render();
+          // Return focus to the row the supervisor came from.
+          root.querySelector<HTMLElement>(`tr[data-job-id="${jobId}"]`)?.focus();
         },
         onActionVerdict: (id, verdict) => applyVerdict(id, verdict),
       });
       render();
+      window.scrollTo({ top: 0 });
+      root.querySelector<HTMLElement>('.btn-close-view')?.focus({ preventScroll: true });
     },
   });
 }
@@ -143,38 +147,74 @@ function humaniseDates(scope: HTMLElement): void {
   }
 }
 
+/**
+ * The four parts a risk score is built from, in the order the scorer adds them.
+ * Each has its own colour so the bar in the queue and the panel in the detail
+ * view read the same way.
+ */
+const SCORE_PARTS = [
+  { key: 'overridesPoints', label: 'Overrides', tone: 'overrides' },
+  { key: 'outOfRangePoints', label: 'Out of range', tone: 'range' },
+  { key: 'failedChecksPoints', label: 'Failed checks', tone: 'checks' },
+  { key: 'newProcedurePoints', label: 'New procedure', tone: 'procedure' },
+] as const;
+
+/** The highest score in the seed data, so every bar is drawn to the same scale. */
+const SCALE_MAX = Math.max(...JOBS.map((j) => j.riskScore), 1);
+
+/**
+ * A stacked bar showing which parts make up a job's score. Drawn from the
+ * scorer's own breakdown, so the bar can never disagree with the number.
+ */
+function renderScoreBar(jobId: string, scaled = true): string {
+  const result = scoreBreakdownFor(jobId);
+  if (!result || result.score === 0) return scaled ? '<span class="score-track"></span>' : '';
+  const width = scaled ? (result.score / SCALE_MAX) * 100 : 100;
+  const segments = SCORE_PARTS.filter((p) => result.breakdown[p.key] > 0)
+    .map(
+      (p) =>
+        `<span class="score-seg seg-${p.tone}" style="flex-grow:${result.breakdown[p.key]}" title="${p.label}: ${result.breakdown[p.key]}"></span>`
+    )
+    .join('');
+  const bar = `<span class="score-bar" style="width:${width}%" aria-hidden="true">${segments}</span>`;
+  // In the queue every bar sits in the same fixed-width track, so a 15 is
+  // visibly longer than a 4 and rows can be compared at a glance.
+  return scaled ? `<span class="score-track">${bar}</span>` : bar;
+}
+
 /** Sidebar showing how the score was reached, using the scorer's own breakdown. */
 function renderScorePanel(jobId: string): string {
   const result = scoreBreakdownFor(jobId);
   if (!result) return '';
 
-  const rows: Array<[string, number, string]> = [
-    ['Overrides', result.breakdown.overridesPoints, `${result.factors.overridesCount} × 3`],
-    ['Out of range', result.breakdown.outOfRangePoints, `${result.factors.outOfRangeCount} × 2`],
-    ['Failed checks', result.breakdown.failedChecksPoints, `${result.factors.failedChecksCount} × 2`],
-    ['New procedure', result.breakdown.newProcedurePoints, result.factors.isNewProcedure ? '1 × 1' : '0 × 1'],
-  ];
+  const workings: Record<(typeof SCORE_PARTS)[number]['key'], string> = {
+    overridesPoints: `${result.factors.overridesCount} × 3`,
+    outOfRangePoints: `${result.factors.outOfRangeCount} × 2`,
+    failedChecksPoints: `${result.factors.failedChecksCount} × 2`,
+    newProcedurePoints: result.factors.isNewProcedure ? '1 × 1' : '0 × 1',
+  };
 
-  const rowHTML = rows
-    .map(
-      ([label, points, workings]) => `
+  const rowHTML = SCORE_PARTS.map((p) => {
+    const points = result.breakdown[p.key];
+    return `
       <div class="score-row ${points > 0 ? 'contributes' : ''}">
-        <span class="score-label">${label}</span>
-        <span class="score-workings">${workings}</span>
+        <span class="score-key seg-${p.tone}" aria-hidden="true"></span>
+        <span class="score-label">${p.label}</span>
+        <span class="score-workings">${workings[p.key]}</span>
         <span class="score-points">${points}</span>
-      </div>`
-    )
-    .join('');
+      </div>`;
+  }).join('');
 
   return `
-    <aside class="score-panel">
+    <aside class="score-panel" aria-label="How the risk score was reached">
       <h3>Why this score</h3>
-      <div class="score-rows">${rowHTML}</div>
       <div class="score-total">
-        <span>Total</span>
         <span class="score-total-value">${result.score}</span>
+        <span class="score-total-label">points</span>
       </div>
-      <p class="score-note">Computed by <code>calculateRiskScore()</code> from this job's own steps, measurements and findings.</p>
+      ${renderScoreBar(jobId, false)}
+      <div class="score-rows">${rowHTML}</div>
+      <p class="score-note">Worked out from this job's own steps, measurements and findings. Nobody types the number in.</p>
     </aside>
   `;
 }
@@ -205,7 +245,7 @@ function renderVerdictFailure(jobId: string): string {
   return `
     <div class="verdict-error" role="alert">
       <strong>This job could not be closed.</strong>
-      <span>${reason}</span>
+      <span class="verdict-error-reason">${reason}</span>
       <span class="verdict-error-note">The verdict was not recorded. The job remains in the review queue.</span>
     </div>`;
 }
@@ -230,21 +270,34 @@ function render(): void {
   } else {
     const total = openJobs.length;
     const highRisk = openJobs.filter((j) => j.riskScore >= 10).length;
+    const summary =
+      total === 0
+        ? 'Nothing is waiting for you.'
+        : `${total} ${total === 1 ? 'job' : 'jobs'} awaiting review${
+            highRisk > 0 ? `, <span class="count-high">${highRisk} high risk</span>` : ''
+          }. Highest risk first.`;
     root.innerHTML = `
-      <section class="queue-panel">
+      <section class="queue-panel" aria-labelledby="queue-title">
+        <div class="queue-intro">
+          <h1 id="queue-title">Jobs waiting for sign-off</h1>
+          <p class="queue-counts">${summary}</p>
+        </div>
         <div class="queue-toolbar">
-          <div class="queue-counts">
-            <strong>${total}</strong> awaiting review
-            ${highRisk > 0 ? `<span class="count-high">${highRisk} high risk</span>` : ''}
-          </div>
-          <div class="legend">
+          <div class="legend" aria-label="Risk levels">
             <span class="badge badge-high">High ≥ 10</span>
             <span class="badge badge-medium">Medium 5–9</span>
             <span class="badge badge-low">Low &lt; 5</span>
           </div>
+          <div class="score-key-legend" aria-label="What a score is made of">
+            ${SCORE_PARTS.map((p) => `<span><i class="score-key seg-${p.tone}"></i>${p.label}</span>`).join('')}
+          </div>
         </div>
         ${total > 0 ? queue.renderHTML() : `<p class="empty-state">Queue clear. Every completed job has been reviewed.</p>`}
       </section>`;
+    for (const cell of root.querySelectorAll<HTMLElement>('tr[data-job-id] .risk-cell')) {
+      const jobId = cell.closest<HTMLElement>('tr')!.dataset.jobId!;
+      cell.insertAdjacentHTML('beforeend', renderScoreBar(jobId));
+    }
   }
   humaniseDates(root);
 }
@@ -276,8 +329,10 @@ root.addEventListener('click', (event) => {
 
   const header = target.closest<HTMLElement>('th[data-sort-key]');
   if (header) {
-    queue.handleHeaderClick(header.dataset.sortKey as SortableColumn);
+    const key = header.dataset.sortKey as SortableColumn;
+    queue.handleHeaderClick(key);
     render();
+    root.querySelector<HTMLElement>(`th[data-sort-key="${key}"] .sort-btn`)?.focus();
     return;
   }
 
@@ -298,6 +353,7 @@ root.addEventListener('click', (event) => {
   if (tab) {
     detail.setActiveTab(tab.dataset.tab as JobDetailTab);
     render();
+    root.querySelector<HTMLElement>('.tab-btn.active')?.focus();
     return;
   }
 
@@ -322,6 +378,14 @@ root.addEventListener('click', (event) => {
   if (verdict) {
     detail.submitVerdict(verdict.dataset.verdict as Verdict);
   }
+});
+
+root.addEventListener('keydown', (event) => {
+  if (detail || (event.key !== 'Enter' && event.key !== ' ')) return;
+  const row = (event.target as HTMLElement).closest<HTMLElement>('tr[data-job-id]');
+  if (!row) return;
+  event.preventDefault();
+  queue.handleRowClick(row.dataset.jobId!);
 });
 
 document.addEventListener('keydown', (event) => {
