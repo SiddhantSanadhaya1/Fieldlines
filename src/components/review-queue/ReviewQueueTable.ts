@@ -1,21 +1,24 @@
 import {
   ReviewQueueItem,
   ReviewQueueTableProps,
+  RiskLevel,
   SortableColumn,
   SortDirection,
 } from './types.js';
-import { getRiskLevel, sortReviewQueueItems } from './helpers.js';
+import { getRiskLevel, sortReviewQueueItems, filterByRiskLevel } from './helpers.js';
 
 export class ReviewQueueTableController {
   private jobs: ReviewQueueItem[];
   private currentSortColumn: SortableColumn;
   private currentSortDirection: SortDirection;
+  private currentFilter: RiskLevel | null;
   private onSelectJob?: (jobId: string) => void;
 
   constructor(props: ReviewQueueTableProps) {
     this.jobs = props.jobs;
     this.currentSortColumn = props.defaultSortColumn || 'riskScore';
     this.currentSortDirection = props.defaultSortDirection || 'desc';
+    this.currentFilter = props.defaultFilter ?? null;
     this.onSelectJob = props.onSelectJob;
   }
 
@@ -24,10 +27,38 @@ export class ReviewQueueTableController {
   }
 
   public getSortedJobs(): ReviewQueueItem[] {
+    const filtered = filterByRiskLevel(this.jobs, this.currentFilter);
     return sortReviewQueueItems(
-      this.jobs,
+      filtered,
       this.currentSortColumn,
       this.currentSortDirection
+    );
+  }
+
+  public setFilter(level: RiskLevel | null): void {
+    this.currentFilter = level;
+  }
+
+  public handleFilterClick(level: RiskLevel): void {
+    if (this.currentFilter === level) {
+      this.currentFilter = null;
+    } else {
+      this.currentFilter = level;
+    }
+  }
+
+  public getFilter(): RiskLevel | null {
+    return this.currentFilter;
+  }
+
+  public getRiskLevelCounts(): Record<RiskLevel, number> {
+    return this.jobs.reduce(
+      (counts, job) => {
+        const level = getRiskLevel(job.riskScore);
+        counts[level]++;
+        return counts;
+      },
+      { HIGH: 0, MEDIUM: 0, LOW: 0 } as Record<RiskLevel, number>
     );
   }
 
@@ -54,8 +85,38 @@ export class ReviewQueueTableController {
     };
   }
 
+  private renderToolbar(): string {
+    const counts = this.getRiskLevelCounts();
+    const levels: Array<{ level: RiskLevel; label: string; threshold: string }> = [
+      { level: 'HIGH', label: 'High', threshold: '>= 10' },
+      { level: 'MEDIUM', label: 'Medium', threshold: '5-9' },
+      { level: 'LOW', label: 'Low', threshold: '< 5' },
+    ];
+
+    const buttonsHTML = levels
+      .map(({ level, label, threshold }) => {
+        const isActive = this.currentFilter === level;
+        const activeClass = isActive ? ' active' : '';
+        const count = counts[level];
+        return `<button type="button" class="risk-filter-btn badge-${level.toLowerCase()}${activeClass}" data-filter="${level}">${label} ${threshold} · ${count}</button>`;
+      })
+      .join('');
+
+    return `<div class="queue-toolbar">${buttonsHTML}</div>`;
+  }
+
   public renderHTML(): string {
     const sorted = this.getSortedJobs();
+    const toolbar = this.renderToolbar();
+
+    if (sorted.length === 0 && this.currentFilter !== null) {
+      const levelWord = this.currentFilter.toLowerCase();
+      return `
+        ${toolbar}
+        <div class="empty-queue-message">No ${levelWord} risk jobs awaiting review</div>
+      `.trim();
+    }
+
     const headers: { label: string; key: SortableColumn; numeric?: boolean }[] = [
       { label: 'Technician', key: 'technicianName' },
       { label: 'Job type', key: 'jobType' },
@@ -104,6 +165,7 @@ export class ReviewQueueTableController {
       .join('');
 
     return `
+      ${toolbar}
       <table class="review-queue-table">
         <thead>
           <tr>${headerHTML}</tr>

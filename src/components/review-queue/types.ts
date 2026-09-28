@@ -25,4 +25,5 @@ export interface ReviewQueueTableProps {
   onSelectJob?: (jobId: string) => void;
   defaultSortColumn?: SortableColumn;
   defaultSortDirection?: SortDirection;
+  defaultFilter?: RiskLevel | null;
 }
