@@ -42,3 +42,16 @@ export function sortReviewQueueItems(
     return 0;
   });
 }
+
+/**
+ * Filters array of ReviewQueueItems by risk level.
+ * Returns all items if level is null.
+ */
+export function filterByRiskLevel(
+  items: ReviewQueueItem[],
+  level: RiskLevel | null
+): ReviewQueueItem[] {
+  if (level === null) return items;
+  return items.filter((item) => getRiskLevel(item.riskScore) === level);
+}
+

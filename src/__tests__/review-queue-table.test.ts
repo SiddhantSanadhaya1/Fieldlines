@@ -134,5 +134,107 @@ describe('FIEL-60 Review Queue Table Component', () => {
       assert.ok(html.includes('badge-low'));
       assert.ok(html.includes('Alice Springs'));
     });
+
+    it('filtering to HIGH returns only jobs with score >= 10', () => {
+      const table = new ReviewQueueTableController({ jobs: sampleJobs });
+      table.setFilter('HIGH');
+      const filtered = table.getSortedJobs();
+
+      assert.equal(filtered.length, 1);
+      assert.equal(filtered[0].id, 'JOB-2');
+      assert.ok(filtered[0].riskScore >= 10);
+    });
+
+    it('a filtered queue is returned in the chosen sort order', () => {
+      const moreJobs: ReviewQueueItem[] = [
+        ...sampleJobs,
+        {
+          id: 'JOB-4',
+          technicianName: 'Diana Prince',
+          jobType: 'Network Install',
+          completedAt: '2026-08-14T12:00:00.000Z',
+          findingsCount: 6,
+          overridesCount: 5,
+          riskScore: 15, // HIGH
+        },
+      ];
+      const table = new ReviewQueueTableController({ jobs: moreJobs });
+
+      table.handleHeaderClick('technicianName');
+      table.setFilter('HIGH');
+
+      const filtered = table.getSortedJobs();
+      assert.equal(filtered.length, 2);
+      assert.equal(filtered[0].technicianName, 'Alice Springs');
+      assert.equal(filtered[1].technicianName, 'Diana Prince');
+    });
+
+    it('the count for each level matches the jobs at that level', () => {
+      const table = new ReviewQueueTableController({ jobs: sampleJobs });
+      const counts = table.getRiskLevelCounts();
+
+      assert.equal(counts.HIGH, 1);
+      assert.equal(counts.MEDIUM, 1);
+      assert.equal(counts.LOW, 1);
+
+      const html = table.renderHTML();
+      assert.ok(html.includes('High >= 10 · 1'));
+      assert.ok(html.includes('Medium 5-9 · 1'));
+      assert.ok(html.includes('Low < 5 · 1'));
+    });
+
+    it('clearing the filter returns every job', () => {
+      const table = new ReviewQueueTableController({ jobs: sampleJobs });
+
+      table.setFilter('HIGH');
+      let filtered = table.getSortedJobs();
+      assert.equal(filtered.length, 1);
+
+      table.setFilter(null);
+      filtered = table.getSortedJobs();
+      assert.equal(filtered.length, 3);
+      assert.equal(filtered[0].id, 'JOB-2');
+      assert.equal(filtered[1].id, 'JOB-1');
+      assert.equal(filtered[2].id, 'JOB-3');
+    });
+
+    it('an empty filter result produces the "No ... risk jobs awaiting review" text', () => {
+      const highOnlyJobs: ReviewQueueItem[] = [
+        {
+          id: 'JOB-5',
+          technicianName: 'Eve Adams',
+          jobType: 'Critical Repair',
+          completedAt: '2026-08-14T13:00:00.000Z',
+          findingsCount: 10,
+          overridesCount: 8,
+          riskScore: 20, // HIGH only
+        },
+      ];
+
+      const table = new ReviewQueueTableController({ jobs: highOnlyJobs });
+      table.setFilter('MEDIUM');
+
+      const html = table.renderHTML();
+      assert.ok(html.includes('No medium risk jobs awaiting review'));
+      assert.ok(!html.includes('<table class="review-queue-table">'));
+    });
+
+    it('handleFilterClick toggles the filter', () => {
+      const table = new ReviewQueueTableController({ jobs: sampleJobs });
+
+      assert.equal(table.getFilter(), null);
+
+      table.handleFilterClick('HIGH');
+      assert.equal(table.getFilter(), 'HIGH');
+
+      table.handleFilterClick('HIGH');
+      assert.equal(table.getFilter(), null);
+
+      table.handleFilterClick('MEDIUM');
+      assert.equal(table.getFilter(), 'MEDIUM');
+
+      table.handleFilterClick('HIGH');
+      assert.equal(table.getFilter(), 'HIGH');
+    });
   });
 });
