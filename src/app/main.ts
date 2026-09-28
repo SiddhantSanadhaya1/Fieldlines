@@ -284,9 +284,7 @@ function render(): void {
         </div>
         <div class="queue-toolbar">
           <div class="legend" aria-label="Risk levels">
-            <span class="badge badge-high">High ≥ 10</span>
-            <span class="badge badge-medium">Medium 5–9</span>
-            <span class="badge badge-low">Low &lt; 5</span>
+            ${queue.renderFilterButtons()}
           </div>
           <div class="score-key-legend" aria-label="What a score is made of">
             ${SCORE_PARTS.map((p) => `<span><i class="score-key seg-${p.tone}"></i>${p.label}</span>`).join('')}
@@ -333,6 +331,15 @@ root.addEventListener('click', (event) => {
     queue.handleHeaderClick(key);
     render();
     root.querySelector<HTMLElement>(`th[data-sort-key="${key}"] .sort-btn`)?.focus();
+    return;
+  }
+
+  const filterButton = target.closest<HTMLElement>('button[data-filter-level]');
+  if (filterButton && !detail) {
+    const level = filterButton.dataset.filterLevel as 'HIGH' | 'MEDIUM' | 'LOW';
+    queue.handleFilterClick(level);
+    render();
+    root.querySelector<HTMLElement>(`button[data-filter-level="${level}"]`)?.focus();
     return;
   }
 
