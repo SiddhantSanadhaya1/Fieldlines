@@ -1,0 +1,9 @@
+{
+  "sha": "64cb101e493aeee170ad348cd2836928b274ad1b",
+  "branch": "main",
+  "built_at": "2026-09-28T11:52:17+00:00",
+  "graphify_version": "0.3.0",
+  "node_count": 100,
+  "edge_count": 183,
+  "failed_sources": []
+}
