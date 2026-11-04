@@ -100,6 +100,50 @@ export function formatConfidence(confidence: number): string {
 }
 ```
 
+### Findings Display Sorter
+```typescript
+export function sortFindings(findings: FindingItem[]): FindingItem[] {
+  return [...findings].sort((a, b) => {
+    if (a.isRiskFactor !== b.isRiskFactor) {
+      return a.isRiskFactor ? -1 : 1;
+    }
+    return a.confidence - b.confidence;
+  });
+}
+```
+
+Sorts findings for display with risk factors first, then others. Within each group, lowest confidence comes first. Returns a new array; the source is unchanged.
+
+### Findings Summary Generator
+```typescript
+export function getFindingsSummary(findings: FindingItem[], failedChecksWeight: number): string {
+  const total = findings.length;
+  const riskCount = findings.filter((f) => f.isRiskFactor).length;
+  const points = riskCount * failedChecksWeight;
+
+  const findingWord = total === 1 ? 'finding' : 'findings';
+
+  if (riskCount === 0) {
+    return `${total} ${findingWord}, none count toward risk`;
+  }
+
+  const riskWord = riskCount === 1 ? 'counts' : 'count';
+  const pointWord = points === 1 ? 'point' : 'points';
+  return `${total} ${findingWord}, ${riskCount} ${riskWord} toward risk, adding ${points} ${pointWord}`;
+}
+```
+
+Generates a summary line showing total count, how many count toward risk, and total points. Example: "2 findings, 2 count toward risk, adding 4 points".
+
+### Low Confidence Threshold Check
+```typescript
+export function isLowConfidence(confidence: number): boolean {
+  return confidence < 0.75;
+}
+```
+
+Returns true for confidence below 75% (< 0.75), false for 75% or above. Findings below this threshold display "Low confidence: check the photo".
+
 ---
 
 ## 4. Component Layout Sketch
@@ -115,16 +159,29 @@ export function formatConfidence(confidence: number): string {
 | • Temp Reading: 72.0 °F   [Expected: 60.0 - 80.0 °F]  --> [ NORMAL (Green) ]       |
 +---------------------------------------------------------------------------------------+
 | TAB: FINDINGS                                                                        |
-| • Rust detected on valve stem ----------------------------> [ 95% Confidence ]      |
+| 2 findings, 2 count toward risk, adding 4 points                                     |
+| • Door seal perished -------------------------> [ 72% Confidence ] [Counts toward    |
+|   risk] Low confidence: check the photo                                              |
+| • Rust detected on valve stem ---------------> [ 95% Confidence ] [Counts toward    |
+|   risk]                                                                              |
 +---------------------------------------------------------------------------------------+
 | [ Lightbox Modal Overlay when thumbnail clicked ]                                     |
 +---------------------------------------------------------------------------------------+
 ```
+
+Findings are displayed with:
+- Summary line showing total findings, risk count, and points
+- Risk factors listed first, then non-risk findings
+- Within each group, lowest confidence first
+- Low confidence warning (<75%) shown when applicable
 
 ---
 
 ## 5. Verification Plan
 
 - Unit tests for `isMeasurementOutOfRange` and `formatConfidence`.
+- Unit tests for `sortFindings` verifying risk factors appear before non-risk, and within groups items are sorted by confidence ascending.
+- Unit tests for `getFindingsSummary` verifying correct counts, pluralization, and formatting.
+- Unit tests for `isLowConfidence` verifying the 75% threshold boundary.
 - Controller tests for active tab selection, lightbox open/close toggle, and verdict action callbacks.
-- HTML render tests verifying tab sections, lightbox modal, confidence badges, and range highlights.
+- HTML render tests verifying tab sections, lightbox modal, confidence badges, range highlights, findings sorting, summary line display, and low confidence warnings.

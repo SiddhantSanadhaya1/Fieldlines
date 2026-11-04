@@ -5,8 +5,15 @@ import {
   JobDetailViewProps,
   ProcedureStepItem,
 } from './types.js';
-import { formatConfidence, isMeasurementOutOfRange } from './helpers.js';
+import {
+  formatConfidence,
+  getFindingsSummary,
+  isLowConfidence,
+  isMeasurementOutOfRange,
+  sortFindings,
+} from './helpers.js';
 import { getRiskLevel } from '../review-queue/helpers.js';
+import { DEFAULT_RISK_WEIGHTS } from '../../domain/risk/constants.js';
 
 export class JobDetailViewController {
   private job: DetailedJobData;
@@ -146,19 +153,23 @@ export class JobDetailViewController {
 
       tabContentHTML = `<div class="tab-content steps-content" role="tabpanel"><ol class="step-list">${stepsHTML}</ol></div>`;
     } else if (this.activeTab === 'findings') {
-      const findingsHTML = this.job.findings
+      const sortedFindings = sortFindings(this.job.findings);
+      const summaryLine = getFindingsSummary(this.job.findings, DEFAULT_RISK_WEIGHTS.failedChecksWeight);
+
+      const findingsHTML = sortedFindings
         .map(
           (f) => `
           <div class="finding-card ${f.isRiskFactor ? 'risk-finding' : ''}">
             <span class="finding-label">${f.label}</span>
             ${f.isRiskFactor ? '<span class="finding-flag">Counts toward risk</span>' : ''}
             <span class="confidence-badge">${formatConfidence(f.confidence)} Confidence</span>
+            ${isLowConfidence(f.confidence) ? '<span class="low-confidence-warning">Low confidence: check the photo</span>' : ''}
           </div>
         `
         )
         .join('');
 
-      tabContentHTML = `<div class="tab-content findings-content" role="tabpanel">${findingsHTML}</div>`;
+      tabContentHTML = `<div class="tab-content findings-content" role="tabpanel"><p class="findings-summary">${summaryLine}</p>${findingsHTML}</div>`;
     } else if (this.activeTab === 'measurements') {
       const measurementsHTML = this.job.measurements
         .map((m) => {

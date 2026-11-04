@@ -90,10 +90,10 @@ export interface JobDetailViewProps {
 
 #### Task 2: Create Measurement & Formatting Helpers (`src/components/job-detail/helpers.ts`)
 - **File:** `src/components/job-detail/helpers.ts`
-- **Description:** Implement `isMeasurementOutOfRange` and `formatConfidence`.
+- **Description:** Implement helper functions for measurements, confidence formatting, findings display sorting, summary generation, and low confidence detection.
 
 ```typescript
-import { MeasurementItem } from './types.js';
+import { FindingItem, MeasurementItem } from './types.js';
 
 export function isMeasurementOutOfRange(item: MeasurementItem): boolean {
   return item.value < item.minRange || item.value > item.maxRange;
@@ -103,6 +103,35 @@ export function formatConfidence(confidence: number): string {
   const pct = Math.round(confidence * 100);
   return `${pct}%`;
 }
+
+export function sortFindings(findings: FindingItem[]): FindingItem[] {
+  return [...findings].sort((a, b) => {
+    if (a.isRiskFactor !== b.isRiskFactor) {
+      return a.isRiskFactor ? -1 : 1;
+    }
+    return a.confidence - b.confidence;
+  });
+}
+
+export function getFindingsSummary(findings: FindingItem[], failedChecksWeight: number): string {
+  const total = findings.length;
+  const riskCount = findings.filter((f) => f.isRiskFactor).length;
+  const points = riskCount * failedChecksWeight;
+
+  const findingWord = total === 1 ? 'finding' : 'findings';
+
+  if (riskCount === 0) {
+    return `${total} ${findingWord}, none count toward risk`;
+  }
+
+  const riskWord = riskCount === 1 ? 'counts' : 'count';
+  const pointWord = points === 1 ? 'point' : 'points';
+  return `${total} ${findingWord}, ${riskCount} ${riskWord} toward risk, adding ${points} ${pointWord}`;
+}
+
+export function isLowConfidence(confidence: number): boolean {
+  return confidence < 0.75;
+}
 ```
 
 ---
@@ -111,7 +140,7 @@ export function formatConfidence(confidence: number): string {
 
 #### Task 3: Build Job Detail View Controller (`src/components/job-detail/JobDetailView.ts`)
 - **File:** `src/components/job-detail/JobDetailView.ts`
-- **Description:** Implement `JobDetailViewController` handling tab navigation, lightbox modal state (`openLightbox`, `closeLightbox`), supervisor verdict action callbacks, and HTML view rendering.
+- **Description:** Implement `JobDetailViewController` handling tab navigation, lightbox modal state (`openLightbox`, `closeLightbox`), supervisor verdict action callbacks, and HTML view rendering. The findings tab renders findings using `sortFindings`, displays a summary line using `getFindingsSummary`, and shows low confidence warnings using `isLowConfidence`.
 
 ```typescript
 import {
@@ -120,7 +149,14 @@ import {
   JobDetailTab,
   JobDetailViewProps,
 } from './types.js';
-import { formatConfidence, isMeasurementOutOfRange } from './helpers.js';
+import {
+  formatConfidence,
+  getFindingsSummary,
+  isLowConfidence,
+  isMeasurementOutOfRange,
+  sortFindings,
+} from './helpers.js';
+import { DEFAULT_RISK_WEIGHTS } from '../../domain/risk/constants.js';
 
 export class JobDetailViewController {
   private job: DetailedJobData;
@@ -174,7 +210,7 @@ export class JobDetailViewController {
 
 #### Task 4: Write Unit & Component Test Suite (`src/__tests__/job-detail-view.test.ts`)
 - **File:** `src/__tests__/job-detail-view.test.ts`
-- **Description:** Unit test range evaluation, confidence formatting, tab switching, lightbox modal open/close, verdict submission, and HTML rendering.
+- **Description:** Unit test range evaluation, confidence formatting, findings sorting, summary generation, low confidence detection, tab switching, lightbox modal open/close, verdict submission, and HTML rendering with sorted findings, summary line, and low confidence warnings.
 
 ---
 
