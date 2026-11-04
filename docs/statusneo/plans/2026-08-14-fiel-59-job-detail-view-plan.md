@@ -90,10 +90,11 @@ export interface JobDetailViewProps {
 
 #### Task 2: Create Measurement & Formatting Helpers (`src/components/job-detail/helpers.ts`)
 - **File:** `src/components/job-detail/helpers.ts`
-- **Description:** Implement `isMeasurementOutOfRange` and `formatConfidence`.
+- **Description:** Implement `isMeasurementOutOfRange`, `formatConfidence`, `sortFindings`, and `getFindingsSummary`.
 
 ```typescript
-import { MeasurementItem } from './types.js';
+import { FindingItem, MeasurementItem } from './types.js';
+import { DEFAULT_RISK_WEIGHTS } from '../../domain/risk/constants.js';
 
 export function isMeasurementOutOfRange(item: MeasurementItem): boolean {
   return item.value < item.minRange || item.value > item.maxRange;
@@ -103,6 +104,28 @@ export function formatConfidence(confidence: number): string {
   const pct = Math.round(confidence * 100);
   return `${pct}%`;
 }
+
+export function sortFindings(findings: FindingItem[]): FindingItem[] {
+  return [...findings].sort((a, b) => {
+    // Risk factors first
+    if (a.isRiskFactor !== b.isRiskFactor) {
+      return a.isRiskFactor ? -1 : 1;
+    }
+    // Within each group, lowest confidence first
+    return a.confidence - b.confidence;
+  });
+}
+
+export function getFindingsSummary(findings: FindingItem[]): string {
+  const total = findings.length;
+  const riskCount = findings.filter((f) => f.isRiskFactor).length;
+  const points = riskCount * DEFAULT_RISK_WEIGHTS.failedChecksWeight;
+
+  const findingWord = total === 1 ? 'finding' : 'findings';
+  const riskPhrase = riskCount === 0 ? 'none count toward risk' : `${riskCount} count toward risk, adding ${points} ${points === 1 ? 'point' : 'points'}`;
+
+  return `${total} ${findingWord}, ${riskPhrase}`;
+}
 ```
 
 ---
@@ -111,7 +134,7 @@ export function formatConfidence(confidence: number): string {
 
 #### Task 3: Build Job Detail View Controller (`src/components/job-detail/JobDetailView.ts`)
 - **File:** `src/components/job-detail/JobDetailView.ts`
-- **Description:** Implement `JobDetailViewController` handling tab navigation, lightbox modal state (`openLightbox`, `closeLightbox`), supervisor verdict action callbacks, and HTML view rendering.
+- **Description:** Implement `JobDetailViewController` handling tab navigation, lightbox modal state (`openLightbox`, `closeLightbox`), supervisor verdict action callbacks, and HTML view rendering. The Findings tab renders a summary line above the list, sorts findings with risk factors first (lowest confidence first within each group), and displays a low confidence warning for findings below 75%.
 
 ```typescript
 import {
@@ -120,7 +143,7 @@ import {
   JobDetailTab,
   JobDetailViewProps,
 } from './types.js';
-import { formatConfidence, isMeasurementOutOfRange } from './helpers.js';
+import { formatConfidence, isMeasurementOutOfRange, sortFindings, getFindingsSummary } from './helpers.js';
 
 export class JobDetailViewController {
   private job: DetailedJobData;
@@ -166,7 +189,12 @@ export class JobDetailViewController {
   }
 
   public renderHTML(): string {
-    // Render tabs, steps, evidence, findings, measurements, timeline, and lightbox
+    // Findings tab: sort findings, generate summary, show low confidence warnings
+    const LOW_CONFIDENCE_THRESHOLD = 0.75;
+    const sortedFindings = sortFindings(this.job.findings);
+    const summary = getFindingsSummary(this.job.findings);
+    
+    // Render tabs, steps, evidence, findings (with summary line and warnings), measurements, timeline, and lightbox
     return `...`;
   }
 }
@@ -174,7 +202,11 @@ export class JobDetailViewController {
 
 #### Task 4: Write Unit & Component Test Suite (`src/__tests__/job-detail-view.test.ts`)
 - **File:** `src/__tests__/job-detail-view.test.ts`
-- **Description:** Unit test range evaluation, confidence formatting, tab switching, lightbox modal open/close, verdict submission, and HTML rendering.
+- **Description:** Unit test range evaluation, confidence formatting, findings sorting, summary generation, tab switching, lightbox modal open/close, verdict submission, and HTML rendering. Includes tests verifying:
+  - `sortFindings` sorts risk factors first, lowest confidence first within each group
+  - `getFindingsSummary` generates correct summary text with proper pluralization
+  - Findings tab HTML includes summary line and displays low confidence warnings for findings below 75%
+  - Acceptance criteria examples (FL-4821, FL-4795, FL-4736) render correctly
 
 ---
 
