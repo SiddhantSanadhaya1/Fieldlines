@@ -13,7 +13,7 @@
    - Single-screen layout with tabbed or accordion navigation:
      - **Overview & Timeline**: Execution start/end timestamps, technician info, risk score breakdown.
      - **Procedure Steps & Evidence**: Completed steps with photo thumbnails and lightbox image view.
-     - **Findings & Confidence**: AI / on-site findings with confidence percentages (e.g. 94% confidence).
+     - **Findings & Confidence**: AI / on-site findings with confidence percentages (e.g. 94% confidence). Findings that count toward risk appear first, sorted by lowest confidence first within each group. A summary line shows total findings, risk count, and points added. Findings below 75% confidence display a low confidence warning.
      - **Measurements & Ranges**: Numeric readings displaying target ranges and out-of-range highlights (e.g. 4.2 PSI [Expected: 5.0–10.0 PSI] - Highlighting Out of Range).
 3. **What's been built so far?**
    - FIEL-53: Risk Scoring Engine
@@ -51,3 +51,5 @@
   - Tab navigation state (`activeTab`).
   - Lightbox modal state (`activeLightboxImage`).
   - Measurement range validator (`isOutOfRange`).
+  - Findings sorting (`sortFindings`) and summary generator (`getFindingsSummary`).
+  - Low confidence threshold (75%) and warning label for uncertain findings.

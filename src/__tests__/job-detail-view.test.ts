@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { DetailedJobData, MeasurementItem } from '../components/job-detail/types.js';
-import { formatConfidence, isMeasurementOutOfRange } from '../components/job-detail/helpers.js';
+import { DetailedJobData, FindingItem, MeasurementItem } from '../components/job-detail/types.js';
+import { formatConfidence, isMeasurementOutOfRange, sortFindings, getFindingsSummary } from '../components/job-detail/helpers.js';
 import { JobDetailViewController } from '../components/job-detail/JobDetailView.js';
 
 describe('FIEL-59 Single Screen Job Detail View', () => {
@@ -54,6 +54,81 @@ describe('FIEL-59 Single Screen Job Detail View', () => {
       assert.equal(formatConfidence(0.94), '94%');
       assert.equal(formatConfidence(0.999), '100%');
       assert.equal(formatConfidence(0.5), '50%');
+    });
+
+    it('sortFindings sorts risk factors first, lowest confidence first within each group', () => {
+      const findings: FindingItem[] = [
+        { id: 'f1', label: 'High conf risk', confidence: 0.91, isRiskFactor: true },
+        { id: 'f2', label: 'Low conf risk', confidence: 0.78, isRiskFactor: true },
+        { id: 'f3', label: 'High conf non-risk', confidence: 0.96, isRiskFactor: false },
+      ];
+
+      const sorted = sortFindings(findings);
+
+      assert.equal(sorted[0].id, 'f2'); // Low conf risk (0.78)
+      assert.equal(sorted[1].id, 'f1'); // High conf risk (0.91)
+      assert.equal(sorted[2].id, 'f3'); // High conf non-risk (0.96)
+    });
+
+    it('sortFindings does not mutate the original array', () => {
+      const findings: FindingItem[] = [
+        { id: 'f1', label: 'A', confidence: 0.91, isRiskFactor: true },
+        { id: 'f2', label: 'B', confidence: 0.78, isRiskFactor: true },
+      ];
+
+      const originalOrder = findings.map((f) => f.id);
+      sortFindings(findings);
+
+      assert.deepEqual(findings.map((f) => f.id), originalOrder);
+    });
+
+    it('sortFindings handles empty array', () => {
+      const sorted = sortFindings([]);
+      assert.deepEqual(sorted, []);
+    });
+
+    it('sortFindings handles single finding', () => {
+      const findings: FindingItem[] = [
+        { id: 'f1', label: 'Only', confidence: 0.85, isRiskFactor: true },
+      ];
+      const sorted = sortFindings(findings);
+      assert.equal(sorted.length, 1);
+      assert.equal(sorted[0].id, 'f1');
+    });
+
+    it('getFindingsSummary generates correct summary for findings with risk factors', () => {
+      const findings: FindingItem[] = [
+        { id: 'f1', label: 'Risk 1', confidence: 0.88, isRiskFactor: true },
+        { id: 'f2', label: 'Risk 2', confidence: 0.72, isRiskFactor: true },
+      ];
+
+      const summary = getFindingsSummary(findings);
+      assert.equal(summary, '2 findings, 2 count toward risk, adding 4 points');
+    });
+
+    it('getFindingsSummary generates correct summary for findings without risk factors', () => {
+      const findings: FindingItem[] = [
+        { id: 'f1', label: 'Normal', confidence: 0.97, isRiskFactor: false },
+      ];
+
+      const summary = getFindingsSummary(findings);
+      assert.equal(summary, '1 finding, none count toward risk');
+    });
+
+    it('getFindingsSummary handles mixed risk and non-risk findings', () => {
+      const findings: FindingItem[] = [
+        { id: 'f1', label: 'Risk', confidence: 0.85, isRiskFactor: true },
+        { id: 'f2', label: 'Non-risk', confidence: 0.95, isRiskFactor: false },
+        { id: 'f3', label: 'Risk 2', confidence: 0.80, isRiskFactor: true },
+      ];
+
+      const summary = getFindingsSummary(findings);
+      assert.equal(summary, '3 findings, 2 count toward risk, adding 4 points');
+    });
+
+    it('getFindingsSummary handles empty array', () => {
+      const summary = getFindingsSummary([]);
+      assert.equal(summary, '0 findings, none count toward risk');
     });
   });
 
@@ -146,6 +221,121 @@ describe('FIEL-59 Single Screen Job Detail View', () => {
       controller.openLightbox(sampleJob.evidence[0]);
       html = controller.renderHTML();
       assert.ok(html.includes('lightbox-modal'));
+    });
+
+    it('findings tab includes summary line with correct counts and points', () => {
+      const controller = new JobDetailViewController({ job: sampleJob });
+      controller.setActiveTab('findings');
+      const html = controller.renderHTML();
+
+      assert.ok(html.includes('2 findings, 1 count toward risk, adding 2 points'));
+    });
+
+    it('findings tab sorts risk factors first, lowest confidence first', () => {
+      const jobWithMultipleFindings: DetailedJobData = {
+        ...sampleJob,
+        findings: [
+          { id: 'f1', label: 'High conf risk', confidence: 0.91, isRiskFactor: true },
+          { id: 'f2', label: 'Low conf risk', confidence: 0.78, isRiskFactor: true },
+          { id: 'f3', label: 'High conf non-risk', confidence: 0.96, isRiskFactor: false },
+        ],
+      };
+
+      const controller = new JobDetailViewController({ job: jobWithMultipleFindings });
+      controller.setActiveTab('findings');
+      const html = controller.renderHTML();
+
+      const lowConfRiskIndex = html.indexOf('Low conf risk');
+      const highConfRiskIndex = html.indexOf('High conf risk');
+      const highConfNonRiskIndex = html.indexOf('High conf non-risk');
+
+      assert.ok(lowConfRiskIndex < highConfRiskIndex, 'Low confidence risk should appear before high confidence risk');
+      assert.ok(highConfRiskIndex < highConfNonRiskIndex, 'Risk factors should appear before non-risk factors');
+    });
+
+    it('findings tab shows low confidence warning for findings below 75%', () => {
+      const jobWithLowConfidence: DetailedJobData = {
+        ...sampleJob,
+        findings: [
+          { id: 'f1', label: 'Low confidence finding', confidence: 0.72, isRiskFactor: true },
+          { id: 'f2', label: 'High confidence finding', confidence: 0.88, isRiskFactor: true },
+          { id: 'f3', label: 'Exactly 75%', confidence: 0.75, isRiskFactor: true },
+        ],
+      };
+
+      const controller = new JobDetailViewController({ job: jobWithLowConfidence });
+      controller.setActiveTab('findings');
+      const html = controller.renderHTML();
+
+      assert.ok(html.includes('Low confidence: check the photo'));
+
+      const lowConfWarningCount = (html.match(/Low confidence: check the photo/g) || []).length;
+      assert.equal(lowConfWarningCount, 1, 'Only findings below 75% should show the warning');
+    });
+  });
+
+  describe('Acceptance Criteria Examples', () => {
+    it('Job FL-4821 displays findings in correct order per AC', () => {
+      const fl4821: DetailedJobData = {
+        ...sampleJob,
+        id: 'FL-4821',
+        findings: [
+          { id: 'f1', label: 'Connector not fully seated at ONT port', confidence: 0.91, isRiskFactor: true },
+          { id: 'f2', label: 'Splice enclosure left unsealed', confidence: 0.78, isRiskFactor: true },
+          { id: 'f3', label: 'Cable route matches survey', confidence: 0.96, isRiskFactor: false },
+        ],
+      };
+
+      const controller = new JobDetailViewController({ job: fl4821 });
+      controller.setActiveTab('findings');
+      const html = controller.renderHTML();
+
+      const spliceIndex = html.indexOf('Splice enclosure left unsealed');
+      const connectorIndex = html.indexOf('Connector not fully seated at ONT port');
+      const cableIndex = html.indexOf('Cable route matches survey');
+
+      assert.ok(spliceIndex < connectorIndex, 'Splice enclosure (78%) should appear before Connector (91%)');
+      assert.ok(connectorIndex < cableIndex, 'Risk factors should appear before non-risk factors');
+    });
+
+    it('Job FL-4795 displays correct summary and low confidence label per AC', () => {
+      const fl4795: DetailedJobData = {
+        ...sampleJob,
+        id: 'FL-4795',
+        findings: [
+          { id: 'f1', label: 'Battery terminal corrosion', confidence: 0.88, isRiskFactor: true },
+          { id: 'f2', label: 'Door seal perished', confidence: 0.72, isRiskFactor: true },
+        ],
+      };
+
+      const controller = new JobDetailViewController({ job: fl4795 });
+      controller.setActiveTab('findings');
+      const html = controller.renderHTML();
+
+      assert.ok(html.includes('2 findings, 2 count toward risk, adding 4 points'));
+      assert.ok(html.includes('Low confidence: check the photo'));
+      
+      const doorSealSection = html.substring(html.indexOf('Door seal perished'));
+      const batterySection = html.substring(html.indexOf('Battery terminal corrosion'));
+      
+      assert.ok(doorSealSection.includes('Low confidence: check the photo'), 'Door seal (72%) should show low confidence label');
+      assert.ok(!batterySection.includes('Low confidence: check the photo'), 'Battery terminal (88%) should not show low confidence label');
+    });
+
+    it('Job FL-4736 displays correct summary with no risk factors per AC', () => {
+      const fl4736: DetailedJobData = {
+        ...sampleJob,
+        id: 'FL-4736',
+        findings: [
+          { id: 'f1', label: 'Installation matches survey pack', confidence: 0.97, isRiskFactor: false },
+        ],
+      };
+
+      const controller = new JobDetailViewController({ job: fl4736 });
+      controller.setActiveTab('findings');
+      const html = controller.renderHTML();
+
+      assert.ok(html.includes('1 finding, none count toward risk'));
     });
   });
 });

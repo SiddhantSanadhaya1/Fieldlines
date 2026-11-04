@@ -100,6 +100,46 @@ export function formatConfidence(confidence: number): string {
 }
 ```
 
+### Findings Sorting
+```typescript
+export function sortFindings(findings: FindingItem[]): FindingItem[] {
+  return [...findings].sort((a, b) => {
+    // Risk factors first
+    if (a.isRiskFactor !== b.isRiskFactor) {
+      return a.isRiskFactor ? -1 : 1;
+    }
+    // Within each group, lowest confidence first
+    return a.confidence - b.confidence;
+  });
+}
+```
+
+Sorts findings for display with risk factors (`isRiskFactor: true`) appearing first, then others. Within each group, findings are ordered by ascending confidence (lowest first) so supervisors see uncertain findings before routine confirmations. The function returns a new array without mutating the original, ensuring the job's data and risk score remain unchanged.
+
+### Findings Summary Generator
+```typescript
+export function getFindingsSummary(findings: FindingItem[]): string {
+  const total = findings.length;
+  const riskCount = findings.filter((f) => f.isRiskFactor).length;
+  const points = riskCount * DEFAULT_RISK_WEIGHTS.failedChecksWeight;
+
+  const findingWord = total === 1 ? 'finding' : 'findings';
+  const riskPhrase = riskCount === 0 ? 'none count toward risk' : `${riskCount} count toward risk, adding ${points} ${points === 1 ? 'point' : 'points'}`;
+
+  return `${total} ${findingWord}, ${riskPhrase}`;
+}
+```
+
+Generates a summary line describing total findings count, how many count toward risk, and points they add to the risk score. Points are computed from `failedChecksWeight` (2) in `DEFAULT_RISK_WEIGHTS` and never written in by hand.
+
+Examples:
+- *"2 findings, 2 count toward risk, adding 4 points"*
+- *"1 finding, none count toward risk"*
+- *"3 findings, 2 count toward risk, adding 4 points"*
+
+### Low Confidence Threshold
+A finding with `confidence < 0.75` (below 75%) displays the label **"Low confidence: check the photo"**. A finding at exactly 75% does not show the label. This threshold is evaluated at display time and does not affect risk scoring logic.
+
 ---
 
 ## 4. Component Layout Sketch
@@ -115,7 +155,12 @@ export function formatConfidence(confidence: number): string {
 | • Temp Reading: 72.0 °F   [Expected: 60.0 - 80.0 °F]  --> [ NORMAL (Green) ]       |
 +---------------------------------------------------------------------------------------+
 | TAB: FINDINGS                                                                        |
-| • Rust detected on valve stem ----------------------------> [ 95% Confidence ]      |
+| 2 findings, 2 count toward risk, adding 4 points                                     |
+|                                                                                      |
+| • Door seal perished ----------------------------> [ 72% Confidence ]               |
+|   [⚠ Low confidence: check the photo]                 [Counts toward risk]          |
+| • Battery terminal corrosion --------------------> [ 88% Confidence ]               |
+|                                                       [Counts toward risk]          |
 +---------------------------------------------------------------------------------------+
 | [ Lightbox Modal Overlay when thumbnail clicked ]                                     |
 +---------------------------------------------------------------------------------------+
@@ -125,6 +170,11 @@ export function formatConfidence(confidence: number): string {
 
 ## 5. Verification Plan
 
-- Unit tests for `isMeasurementOutOfRange` and `formatConfidence`.
+- Unit tests for `isMeasurementOutOfRange`, `formatConfidence`, `sortFindings`, and `getFindingsSummary`.
 - Controller tests for active tab selection, lightbox open/close toggle, and verdict action callbacks.
-- HTML render tests verifying tab sections, lightbox modal, confidence badges, and range highlights.
+- HTML render tests verifying:
+  - Tab sections with sorted findings (risk factors first, lowest confidence first within groups)
+  - Findings summary line with correct counts and points calculation
+  - Low confidence warning label for findings below 75%
+  - Confidence badges and range highlights
+  - Lightbox modal rendering
