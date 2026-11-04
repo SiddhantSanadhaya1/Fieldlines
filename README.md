@@ -26,6 +26,19 @@ Supervisors review `ORDER BY risk_score DESC`, so jobs with manual overrides and
 safety checks surface first. The function is pure, returns frozen objects, and sanitises
 negative or missing counts to `0` rather than throwing.
 
+**Findings display ordering.** The Findings tab lists findings that count toward risk
+first, then the others. Within each group, the lowest confidence comes first. This
+ordering is computed for display only — the job's risk score and the order of findings in
+the job data do not change.
+
+**Summary line.** Above the findings list, a summary shows how many findings there are, how
+many count toward risk, and how many points they add to the score. Example: "2 findings, 2
+count toward risk, adding 4 points". Points are calculated from `failedChecksWeight` in
+`DEFAULT_RISK_WEIGHTS`.
+
+**Low-confidence threshold.** Findings below 75% confidence show the label "Low confidence:
+check the photo". A finding at exactly 75% does not show the warning.
+
 ## Commands
 
 ```bash
